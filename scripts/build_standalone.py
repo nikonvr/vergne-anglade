@@ -1,3 +1,4 @@
+import datetime
 import json
 import sys
 from pathlib import Path
@@ -7,6 +8,7 @@ from src.core.orchestrator import CertusOrchestrator
 from src.export.gedcom import GedcomExporter
 
 def build_standalone_html():
+    build_time_str = datetime.datetime.now().strftime("%d/%m/%Y à %H:%M:%S")
     db = DatabaseManager("sqlite:///certus_genealogy.db")
     db.init_db()
     
@@ -42,7 +44,6 @@ def build_standalone_html():
     ]
     
     acts_data = []
-    from src.database.repository import ActRepository
     with db.get_session() as session:
         repo = ActRepository(session)
         acts = repo.get_all_acts()
@@ -72,6 +73,9 @@ def build_standalone_html():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>CERTUS Genealogy - Branche VERGNE (Anglards-de-Salers)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
@@ -112,6 +116,7 @@ def build_standalone_html():
                 <h1 class="text-2xl font-bold flex items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page HTTPS Grand Public</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MaJ : {build_time_str}</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERNHE / ANGLADE / BRUN</strong> (Anglards-de-Salers, Cantal)</p>
             </div>

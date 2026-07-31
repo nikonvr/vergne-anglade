@@ -1,6 +1,9 @@
 name: Veille Généalogique Quotidienne (CERTUS Cron)
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Exécution automatique chaque nuit à 00:00 UTC (minuit)
     - cron: '0 0 * * *'
