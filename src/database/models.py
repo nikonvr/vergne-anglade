@@ -13,7 +13,7 @@ class DBAct(Base):
     location = Column(String(255), nullable=True)
     confidence_score = Column(Float, nullable=False)
     source_text = Column(Text, nullable=True)
-    source_type = Column(String(50), default="OCR_CANTAL")
+    source_type = Column(String(50), default="GEDCOM_HEREDIS")
     url_source = Column(String(500), nullable=True)
     reliability_score = Column(Float, default=1.0)
     persons = relationship("DBPerson", back_populates="act", cascade="all, delete-orphan")

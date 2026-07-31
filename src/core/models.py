@@ -15,7 +15,7 @@ class Act(BaseModel):
     persons: List[Person] = Field(default_factory=list)
     confidence_score: float = Field(...)
     source_text: Optional[str] = Field(None)
-    source_type: str = Field("OCR_CANTAL")
+    source_type: str = Field("GEDCOM_HEREDIS")
     url_source: Optional[str] = Field(None)
     reliability_score: float = Field(1.0)
 

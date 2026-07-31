@@ -14,16 +14,21 @@ def build_standalone_html():
     
     from src.database.repository import ActRepository
     from src.parser.gedcom_importer import GedcomImporter
+    from src.database.models import DBAct, DBPerson
     
     gedcom_path = Path("D:/drivefl/gene/2022/2026-02_export.ged")
-    if gedcom_path.exists():
-        with db.get_session() as session:
+    with db.get_session() as session:
+        # Purge des actes obsolètes pour éviter tout conflit de provenance OCR_CANTAL
+        session.query(DBPerson).delete()
+        session.query(DBAct).delete()
+        session.commit()
+        
+        if gedcom_path.exists():
             repo = ActRepository(session)
-            if not repo.get_all_acts():
-                importer = GedcomImporter(gedcom_path)
-                acts = importer.parse_branch(["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL"])
-                for act in acts:
-                    repo.save_act(act)
+            importer = GedcomImporter(gedcom_path)
+            acts = importer.parse_branch(["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL"])
+            for act in acts:
+                repo.save_act(act)
 
     orch = CertusOrchestrator(db)
     tree = orch.generate_global_tree()
@@ -326,12 +331,14 @@ def build_standalone_html():
             const fnUpper = (fn || '').toUpperCase();
             const lnUpper = (ln || '').toUpperCase();
             
-            const matchedAct = ACTS.find(a => 
+            const matches = ACTS.filter(a => 
                 a.persons && a.persons.some(p => 
                     (p.first_name || '').toUpperCase().includes(fnUpper) && 
                     (p.last_name || '').toUpperCase().includes(lnUpper)
                 )
-            ) || ACTS[0];
+            );
+
+            const matchedAct = matches.find(a => a.source_type === 'GEDCOM_HEREDIS' || a.source_type === 'GENEANET_PREMIUM') || matches[0] || ACTS[0];
 
             if (matchedAct) {{
                 document.getElementById('modal-title').innerText = `Acte pour ${{fn}} ${{ln}}`;
