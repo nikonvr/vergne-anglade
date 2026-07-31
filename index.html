@@ -82,7 +82,7 @@
                 <h1 class="text-2xl font-bold flex flex-wrap items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page publique</span>
-                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:44:26</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:48:40</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERGNES / VERNHE / VERNHES / ANGLADE / BRUN / JEHL / IEHL</strong></p>
             </div>
@@ -1067,7 +1067,7 @@ graph TD
     </div>
 
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
-        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:44:26
+        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:48:40
     </footer>
 
     <script>
@@ -1079,6 +1079,16 @@ graph TD
 
         const ACTS_BY_ID = new Map(ACTS.map(a => [a.id, a]));
         const NODES_BY_ID = new Map(NODES.map(n => [n.id, n]));
+
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'neutral',
+            flowchart: {
+                curve: 'stepBefore',
+                htmlLabels: true,
+                useMaxWidth: false
+            }
+        });
 
         // Toutes les valeurs issues des données sont posées via textContent ou setAttribute :
         // aucun nom n'est interpolé dans du HTML ni dans un attribut d'événement, si bien

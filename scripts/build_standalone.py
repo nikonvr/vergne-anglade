@@ -505,6 +505,16 @@ def build_standalone_html() -> Path:
         const ACTS_BY_ID = new Map(ACTS.map(a => [a.id, a]));
         const NODES_BY_ID = new Map(NODES.map(n => [n.id, n]));
 
+        mermaid.initialize({{
+            startOnLoad: true,
+            theme: 'neutral',
+            flowchart: {{
+                curve: 'stepBefore',
+                htmlLabels: true,
+                useMaxWidth: false
+            }}
+        }});
+
         // Toutes les valeurs issues des données sont posées via textContent ou setAttribute :
         // aucun nom n'est interpolé dans du HTML ni dans un attribut d'événement, si bien
         // qu'une apostrophe ou un chevron dans un patronyme ne peut plus rien casser.
