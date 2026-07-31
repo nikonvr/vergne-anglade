@@ -17,7 +17,7 @@ def dummy_image(tmp_path):
     image_file.write_text("fake image content")
     return image_file
 
-@patch("src.ocr.florence.FlorenceOCREngine.extract_text")
+@patch("src.ocr.engine.HTREngine.extract_text")
 @patch("src.parser.llm.LLMActParser.parse")
 def test_process_document_pipeline(mock_parse, mock_ocr, db_manager, dummy_image):
     """

@@ -26,7 +26,7 @@ sys.path.insert(0, ".")
 
 from src.database.engine import DatabaseManager
 from src.database.repository import ActRepository
-from src.ocr.florence import FlorenceOCREngine
+from src.ocr.engine import HTREngine
 from src.ocr.htr import ConsensusResult, HTRError, transcribe_with_consensus
 from src.parser.llm import LLMActParser
 
@@ -124,7 +124,7 @@ def process_batch(
         "Traitement du répertoire %s : %d image(s) trouvée(s).", source_p, len(image_files)
     )
 
-    engine = FlorenceOCREngine()
+    engine = HTREngine()
     parser = LLMActParser()
 
     if db_manager is None:

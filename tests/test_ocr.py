@@ -6,7 +6,7 @@ l'ancien test verrouillait ce comportement en vérifiant la présence de ce patr
 
 import pytest
 
-from src.ocr.florence import FlorenceOCREngine, OCRBackendUnavailableError
+from src.ocr.engine import HTREngine as FlorenceOCREngine, OCRBackendUnavailableError, HTREngine
 
 
 @pytest.fixture

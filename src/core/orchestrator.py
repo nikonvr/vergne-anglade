@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from src.crawler.factory import ArchiveCrawlerFactory
-from src.ocr.florence import FlorenceOCREngine
+from src.ocr.engine import HTREngine
 from src.parser.llm import LLMActParser
 from src.database.engine import DatabaseManager
 from src.database.repository import ActRepository
@@ -50,9 +50,9 @@ class CertusOrchestrator:
         return self.process_document(image_path)
 
     @property
-    def ocr_engine(self) -> FlorenceOCREngine:
+    def ocr_engine(self) -> HTREngine:
         if self._ocr_engine is None:
-            self._ocr_engine = FlorenceOCREngine()
+            self._ocr_engine = HTREngine()
         return self._ocr_engine
 
     @property

@@ -36,7 +36,7 @@ définis une seule fois dans `src/genealogy/variants.py` (`BRANCH_SURNAMES`).
 │   │   ├── csv_importer.py       Import de relevés associatifs au format CSV
 │   │   └── llm.py                Extraction sémantique optionnelle d'un acte par LLM
 │   ├── ocr/
-│   │   └── florence.py           Prétraitement des images de registres (OpenCV, sinon PIL)
+│   │   └── engine.py             Prétraitement des images de registres (OpenCV, sinon PIL)
 │   ├── genealogy/
 │   │   ├── models.py             ConsolidatedPerson, Relationship, FamilyTree
 │   │   ├── builder.py            TreeBuilder : consolidation des personnes, graphe networkx

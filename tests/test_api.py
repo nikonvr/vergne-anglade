@@ -200,7 +200,7 @@ def test_pipeline_process_avec_ocr_mocke(api_token, tmp_path, monkeypatch):
     image.write_bytes(b"dummy")
     monkeypatch.setenv("CERTUS_ALLOWED_DIRS", str(tmp_path))
     monkeypatch.setattr(
-        "src.ocr.florence.FlorenceOCREngine.extract_text", lambda self, path: "Texte brut"
+        "src.ocr.engine.HTREngine.extract_text", lambda self, path: "Texte brut"
     )
     monkeypatch.setattr(
         "src.parser.llm.LLMActParser.parse",

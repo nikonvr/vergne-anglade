@@ -70,7 +70,7 @@ duplique une source de vérité et sera rejeté par les invariants.
 | Prompts de transcription et d'extraction | `src/ocr/bms.py` |
 | Ajouter un moteur de transcription | `src/ocr/backends/<nom>.py` + import dans `backends/__init__.py` |
 | Logique de consensus entre moteurs | `src/ocr/htr.py` |
-| Prétraitement d'image | `src/ocr/florence.py` |
+| Prétraitement d'image | `src/ocr/engine.py` |
 | Lecture du GEDCOM source | `src/parser/gedcom_importer.py` |
 | Identité et fusion des individus | `src/genealogy/builder.py` |
 | Écriture du GEDCOM exporté | `src/export/gedcom.py` |
@@ -133,9 +133,8 @@ avez réintroduit un accès au fonds GEDCOM de 2,2 Mo dans une fixture.
    ISO : la fidélité à la source primerait toujours sur le confort de tri.
 6. **Les lieux sont des chemins à virgules** (`"Ville,CP,Département,Région,PAYS,"`). Pour
    l'affichage, ne gardez que le premier segment.
-7. **`src/ocr/florence.py` porte un nom trompeur** : aucun modèle Florence-2 n'a jamais été
-   branché. `HTREngine` est l'alias canonique. Renommer le module est souhaitable, mais
-   c'est un changement transverse à faire d'un seul coup.
+7. **`src/ocr/engine.py` (anciennement `florence.py`)** : module prétraitement & HTR.
+   `HTREngine` est la classe canonique.
 8. **Python 3.14 diffère** : les annotations y sont évaluées tardivement. Un symbole de
    `typing` non importé passe inaperçu en local et casse à l'import en 3.11, que cible la CI.
    `inspect.signature` sur vos classes publiques révèle le problème.
@@ -174,7 +173,7 @@ Cette commande liste chaque moteur, dit s'il est utilisable, et **pourquoi** il 
 - L'encre traverse le papier ; les pages sont gondolées, tachées, parfois délavées.
 
 C'est pourquoi `src/ocr/bms.py` existe : **le contexte pèse plus que le moteur.** Une graphie
-ambiguë se résout par la formule attendue, non par un meilleur modèle.
+ambiguë se résout par la formule attendue, non par un meilleur moteur.
 
 ### 6.3 Feuille de route, par ordre de rendement décroissant
 
@@ -182,7 +181,7 @@ ambiguë se résout par la formule attendue, non par un meilleur modèle.
    redimensionnent les images au-delà d'environ 1568 px sur le grand côté : sur une page
    entière, le détail des jambages disparaît. Segmentez la page en bandes horizontales (les
    actes sont empilés verticalement) et transcrivez chaque acte séparément.
-   → à ajouter dans `src/ocr/florence.py`, exposé comme `segment_acts(image) -> list[Path]`.
+   → dans `src/ocr/engine.py`, exposé comme `segment_acts(image) -> list[Path]`.
 2. **Un second moteur, pour le consensus.** Avec un seul moteur, `agreement` n'est pas mesuré
    mais déclaré. `transkribus` est le meilleur candidat : ses modèles publics couvrent le
    français des 17e-18e siècles. Deux moteurs suffisent à obtenir une confiance réelle.

@@ -1,6 +1,6 @@
 from sqlalchemy import Boolean, Column, Integer, String, Float, ForeignKey, Text, Index, text
 from sqlalchemy.orm import relationship
-from src.database.engine import Base
+from src.database.base import Base
 
 class DBAct(Base):
     __tablename__ = "acts"

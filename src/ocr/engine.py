@@ -7,6 +7,7 @@ from src.core.simulation import simulation_allowed
 try:
     import cv2
     import numpy as np
+
     HAS_OPENCV = True
 except ImportError:
     HAS_OPENCV = False
@@ -24,9 +25,9 @@ class OCRBackendUnavailableError(RuntimeError):
     """Levée lorsqu'aucun moteur OCR réel n'est configuré et que la simulation est interdite."""
 
 
-class FlorenceOCREngine:
+class HTREngine:
     """
-    Moteur OCR (Florence-2 / HTR) avec pipeline de prétraitement visuel.
+    Moteur OCR / HTR principal avec pipeline de prétraitement visuel.
 
     Le prétraitement d'image est réel (OpenCV ou PIL). En revanche AUCUN moteur
     de reconnaissance n'est actuellement branché : extract_text() lève une
@@ -382,6 +383,5 @@ class FlorenceOCREngine:
         return getattr(self, "_last_consensus", None)
 
 
-# Le nom « Florence » était trompeur : aucun modèle Florence-2 n'a jamais été branché.
-# HTREngine est le nom canonique ; l'alias est conservé pour les appelants existants.
-HTREngine = FlorenceOCREngine
+# Alias de compatibilité pour conserver les appelants existants
+FlorenceOCREngine = HTREngine

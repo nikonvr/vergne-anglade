@@ -4,12 +4,14 @@ from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy import Column, Table, create_engine, inspect, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.schema import CreateIndex
 
+import src.database.models  # noqa: F401 (enregistre les tables dans Base.metadata)
+from src.database.base import Base
+
 logger = logging.getLogger("certus.database")
-Base = declarative_base()
 
 # Noms figés (voir contrat des variables d'environnement).
 ENV_DB_URL = "CERTUS_DB_URL"
@@ -72,9 +74,6 @@ class DatabaseManager:
         create_all() n'ajoute AUCUNE colonne à une table déjà existante : la base de
         production a été créée avec l'ancien schéma, d'où _ensure_columns().
         """
-        # Import tardif : src.database.models importe Base d'ici (dépendance circulaire).
-        import src.database.models  # noqa: F401  (enregistre les tables dans Base.metadata)
-
         Base.metadata.create_all(bind=self.engine)
         self._ensure_columns()
         self._ensure_indexes()
