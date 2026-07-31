@@ -728,21 +728,40 @@ def build_standalone_html() -> Path:
             container.innerHTML = svg;
 
             const svgEl = container.querySelector('svg');
-            if (svgEl) {{
-                svgEl.style.maxWidth = 'none';
-                svgEl.style.width = '100%';
-                svgEl.style.height = '100%';
-                subtreePanZoom = svgPanZoom(svgEl, {{
-                    zoomEnabled: true,
-                    controlIconsEnabled: false,
-                    mouseWheelZoomEnabled: true,
-                    preventMouseEventsDefault: true,
-                    fit: true,
-                    center: true,
-                    minZoom: 0.1,
-                    maxZoom: 10,
-                }});
-            }}
+            if (!svgEl) return;
+            svgEl.style.maxWidth = 'none';
+            svgEl.style.width = '100%';
+            svgEl.style.height = '100%';
+
+            // La modale vient d'être démasquée : sa mise en page (donc la hauteur réelle du
+            // conteneur) n'est pas forcément stabilisée au moment où ce code s'exécute. Sans
+            // ce délai, svgPanZoom mesure un conteneur pas encore à sa taille définitive et
+            // calcule un cadrage faux (seul un coin du diagramme reste visible, le reste hors
+            // champ) — constaté en pratique sur un sous-arbre de plusieurs générations.
+            // Un double requestAnimationFrame garantit qu'au moins une passe de mise en page
+            // et de peinture a eu lieu avant la mesure.
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            subtreePanZoom = svgPanZoom(svgEl, {{
+                zoomEnabled: true,
+                controlIconsEnabled: false,
+                mouseWheelZoomEnabled: true,
+                preventMouseEventsDefault: true,
+                fit: true,
+                center: true,
+                minZoom: 0.1,
+                maxZoom: 10,
+            }});
+            // Deuxième passe défensive : si la mise en page a encore bougé pendant
+            // l'initialisation (ex. la barre de défilement du conteneur parent apparaît/
+            // disparaît), on recalcule une fois le cadrage après un nouveau cycle de rendu.
+            requestAnimationFrame(() => {{
+                if (subtreePanZoom) {{
+                    subtreePanZoom.resize();
+                    subtreePanZoom.fit();
+                    subtreePanZoom.center();
+                }}
+            }});
         }}
 
         function openSubtreeModal(rootId) {{

@@ -82,7 +82,7 @@
                 <h1 class="text-2xl font-bold flex flex-wrap items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page publique</span>
-                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 22:16:41</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 22:24:18</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERGNES / VERNHE / VERNHES / ANGLADE / BRUN / JEHL / IEHL</strong></p>
             </div>
@@ -808,7 +808,7 @@ graph BT
     </div>
 
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
-        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 22:16:41
+        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 22:24:18
     </footer>
 
     <script>
@@ -1092,21 +1092,40 @@ graph BT
             container.innerHTML = svg;
 
             const svgEl = container.querySelector('svg');
-            if (svgEl) {
-                svgEl.style.maxWidth = 'none';
-                svgEl.style.width = '100%';
-                svgEl.style.height = '100%';
-                subtreePanZoom = svgPanZoom(svgEl, {
-                    zoomEnabled: true,
-                    controlIconsEnabled: false,
-                    mouseWheelZoomEnabled: true,
-                    preventMouseEventsDefault: true,
-                    fit: true,
-                    center: true,
-                    minZoom: 0.1,
-                    maxZoom: 10,
-                });
-            }
+            if (!svgEl) return;
+            svgEl.style.maxWidth = 'none';
+            svgEl.style.width = '100%';
+            svgEl.style.height = '100%';
+
+            // La modale vient d'être démasquée : sa mise en page (donc la hauteur réelle du
+            // conteneur) n'est pas forcément stabilisée au moment où ce code s'exécute. Sans
+            // ce délai, svgPanZoom mesure un conteneur pas encore à sa taille définitive et
+            // calcule un cadrage faux (seul un coin du diagramme reste visible, le reste hors
+            // champ) — constaté en pratique sur un sous-arbre de plusieurs générations.
+            // Un double requestAnimationFrame garantit qu'au moins une passe de mise en page
+            // et de peinture a eu lieu avant la mesure.
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            subtreePanZoom = svgPanZoom(svgEl, {
+                zoomEnabled: true,
+                controlIconsEnabled: false,
+                mouseWheelZoomEnabled: true,
+                preventMouseEventsDefault: true,
+                fit: true,
+                center: true,
+                minZoom: 0.1,
+                maxZoom: 10,
+            });
+            // Deuxième passe défensive : si la mise en page a encore bougé pendant
+            // l'initialisation (ex. la barre de défilement du conteneur parent apparaît/
+            // disparaît), on recalcule une fois le cadrage après un nouveau cycle de rendu.
+            requestAnimationFrame(() => {
+                if (subtreePanZoom) {
+                    subtreePanZoom.resize();
+                    subtreePanZoom.fit();
+                    subtreePanZoom.center();
+                }
+            });
         }
 
         function openSubtreeModal(rootId) {
