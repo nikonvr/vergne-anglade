@@ -120,9 +120,9 @@ def test_conjoint_naturellement_inclus_dans_la_descendance(builder_and_tree):
     assert "I_PARENT2" not in ids  # PARENT2 n'est PAS un descendant de PARENT1
 
     # Mais si on prend le sous-arbre centré sur l'ENFANT en remontant d'un niveau,
-    # les DEUX parents apparaissent.
+    # les DEUX parents et la fratrie (ENFANT2) apparaissent.
     ids_enfant = builder.subtree_ids("I_ENFANT1", up=1, down=0)
-    assert ids_enfant == {"I_ENFANT1", "I_PARENT1", "I_PARENT2"}
+    assert ids_enfant == {"I_ENFANT1", "I_ENFANT2", "I_PARENT1", "I_PARENT2"}
 
 
 def test_profondeur_superieure_a_la_hauteur_reelle_ne_plante_pas(builder_and_tree):
@@ -130,7 +130,7 @@ def test_profondeur_superieure_a_la_hauteur_reelle_ne_plante_pas(builder_and_tre
     de recherche s'épuise simplement (couvert par le `if not frontier: break`)."""
     builder, _ = builder_and_tree
     ids = builder.subtree_ids("I_ENFANT1", up=50, down=50)
-    assert ids == {"I_ENFANT1", "I_PARENT1", "I_PARENT2", "I_GP1", "I_GP2", "I_GP3", "I_GP4"}
+    assert ids == {"I_ENFANT1", "I_ENFANT2", "I_PARENT1", "I_PARENT2", "I_GP1", "I_GP2", "I_GP3", "I_GP4"}
 
 
 def test_subtree_filtre_noeuds_et_aretes(builder_and_tree):

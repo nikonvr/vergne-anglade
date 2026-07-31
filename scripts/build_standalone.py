@@ -873,6 +873,10 @@ def build_standalone_html() -> Path:
                 if (next.size === 0) break;
                 next.forEach(id => ids.add(id));
                 frontier = next;
+                // Inclure la fratrie (enfants des ascendants retenus)
+                const siblings = new Set();
+                filiation.forEach(e => {{ if (frontier.has(e.source_id)) siblings.add(e.target_id); }});
+                siblings.forEach(id => ids.add(id));
             }}
 
             frontier = new Set([rootId]);

@@ -165,9 +165,9 @@ def test_tree_sans_person_id_retourne_arbre_complet():
 
 
 def test_tree_avec_person_id_retourne_un_sous_ensemble():
-    """Centré sur l'enfant I1 en ne remontant que d'un niveau : les deux parents, pas plus."""
+    """Centré sur l'enfant I1 en ne remontant que d'un niveau : les deux parents et la fratrie (I4)."""
     body = client.get("/api/tree", params={"person_id": "I1", "up": 1, "down": 0}).json()
-    assert set(body["nodes"]) == {"I1", "I2", "I3"}
+    assert set(body["nodes"]) == {"I1", "I2", "I3", "I4"}
     for edge in body["edges"]:
         assert edge["source_id"] in body["nodes"]
         assert edge["target_id"] in body["nodes"]

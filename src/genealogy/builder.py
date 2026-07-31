@@ -376,6 +376,9 @@ class TreeBuilder:
             if not frontier:
                 break
             ids |= frontier
+            # Inclure les frères et sœurs (les autres enfants des ascendants retenus)
+            siblings = {child for parent in frontier for child in dag.successors(parent)}
+            ids |= siblings
 
         frontier = {root_id}
         for _ in range(max(0, down)):
