@@ -25,16 +25,26 @@
         .fade-in { animation: fadeIn 0.4s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes marquee {
-            0% { transform: translateX(100%); }
+            0% { transform: translateX(0%); }
             100% { transform: translateX(-100%); }
         }
         .animate-marquee {
             display: inline-block;
             white-space: nowrap;
-            animation: marquee 240s linear infinite;
+            animation: marquee 60s linear infinite;
         }
         .animate-marquee:hover {
             animation-play-state: paused;
+        }
+        .mermaid {
+            width: 100%;
+            overflow: auto;
+        }
+        .mermaid svg {
+            max-width: none !important;
+            min-width: 1800px !important;
+            min-height: 500px !important;
+            height: auto !important;
         }
         html { scroll-behavior: smooth; }
     </style>
@@ -46,7 +56,7 @@
                 <h1 class="text-2xl font-bold flex items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page HTTPS Grand Public</span>
-                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MaJ : 31/07/2026 à 15:26:24</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MaJ : 31/07/2026 à 15:34:15</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERNHE / ANGLADE / BRUN</strong> (Anglards-de-Salers, Cantal)</p>
             </div>
@@ -857,12 +867,14 @@ graph BT
             const fnUpper = (fn || '').toUpperCase();
             const lnUpper = (ln || '').toUpperCase();
             
-            const matchedAct = ACTS.find(a => 
+            const matches = ACTS.filter(a => 
                 a.persons && a.persons.some(p => 
                     (p.first_name || '').toUpperCase().includes(fnUpper) && 
                     (p.last_name || '').toUpperCase().includes(lnUpper)
                 )
-            ) || ACTS[0];
+            );
+
+            const matchedAct = matches.find(a => a.source_type === 'GEDCOM_HEREDIS' || a.source_type === 'GENEANET_PREMIUM') || matches[0] || ACTS[0];
 
             if (matchedAct) {
                 document.getElementById('modal-title').innerText = `Acte pour ${fn} ${ln}`;

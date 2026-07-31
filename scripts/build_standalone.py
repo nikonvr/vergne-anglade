@@ -15,23 +15,32 @@ def build_standalone_html():
     from src.database.repository import ActRepository
     from src.parser.gedcom_importer import GedcomImporter
     from src.database.models import DBAct, DBPerson
+    from src.genealogy.builder import TreeBuilder
     
     gedcom_path = Path("D:/drivefl/gene/2022/2026-02_export.ged")
-    with db.get_session() as session:
-        # Purge des actes obsolètes pour éviter tout conflit de provenance OCR_CANTAL
-        session.query(DBPerson).delete()
-        session.query(DBAct).delete()
-        session.commit()
-        
-        if gedcom_path.exists():
-            repo = ActRepository(session)
-            importer = GedcomImporter(gedcom_path)
-            acts = importer.parse_branch(["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL"])
+    acts = []
+    if gedcom_path.exists():
+        importer = GedcomImporter(gedcom_path)
+        acts = importer.parse_branch(["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL"])
+        with db.get_session() as session:
+            session.query(DBPerson).delete()
+            session.query(DBAct).delete()
+            session.commit()
+            db_acts = []
             for act in acts:
-                repo.save_act(act)
+                db_act = DBAct(
+                    act_type=act.act_type, date=act.date, location=act.location,
+                    confidence_score=act.confidence_score, source_text=act.source_text,
+                    source_type=act.source_type, url_source=act.url_source, reliability_score=act.reliability_score
+                )
+                for p in act.persons:
+                    db_act.persons.append(DBPerson(first_name=p.first_name, last_name=p.last_name, role=p.role, age=p.age, occupation=p.occupation))
+                db_acts.append(db_act)
+            session.add_all(db_acts)
+            session.commit()
 
-    orch = CertusOrchestrator(db)
-    tree = orch.generate_global_tree()
+    tree_builder = TreeBuilder()
+    tree = tree_builder.process_acts(acts)
     exporter = GedcomExporter()
     
     mermaid_code = exporter.export_mermaid(tree)
@@ -100,16 +109,26 @@ def build_standalone_html():
         .fade-in {{ animation: fadeIn 0.4s ease-in-out; }}
         @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
         @keyframes marquee {{
-            0% {{ transform: translateX(100%); }}
+            0% {{ transform: translateX(0%); }}
             100% {{ transform: translateX(-100%); }}
         }}
         .animate-marquee {{
             display: inline-block;
             white-space: nowrap;
-            animation: marquee 240s linear infinite;
+            animation: marquee 60s linear infinite;
         }}
         .animate-marquee:hover {{
             animation-play-state: paused;
+        }}
+        .mermaid {{
+            width: 100%;
+            overflow: auto;
+        }}
+        .mermaid svg {{
+            max-width: none !important;
+            min-width: 1800px !important;
+            min-height: 500px !important;
+            height: auto !important;
         }}
         html {{ scroll-behavior: smooth; }}
     </style>
