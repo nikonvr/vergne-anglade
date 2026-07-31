@@ -82,7 +82,7 @@
                 <h1 class="text-2xl font-bold flex flex-wrap items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page publique</span>
-                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:21:36</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:33:16</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERGNES / VERNHE / VERNHES / ANGLADE / BRUN / JEHL / IEHL</strong></p>
             </div>
@@ -732,6 +732,81 @@ graph BT
     P230 --> P227
     P231 --> P229
     P232 --> P229
+    P2 -.-|💍 union| P3
+    P6 -.-|💍 union| P7
+    P9 -.-|💍 union| P5
+    P14 -.-|💍 union| P1
+    P18 -.-|💍 union| P19
+    P21 -.-|💍 union| P22
+    P23 -.-|💍 union| P24
+    P26 -.-|💍 union| P27
+    P26 -.-|💍 union| P30
+    P32 -.-|💍 union| P33
+    P34 -.-|💍 union| P36
+    P17 -.-|💍 union| P40
+    P39 -.-|💍 union| P44
+    P39 -.-|💍 union| P47
+    P49 -.-|💍 union| P28
+    P50 -.-|💍 union| P51
+    P53 -.-|💍 union| P54
+    P57 -.-|💍 union| P58
+    P60 -.-|💍 union| P61
+    P66 -.-|💍 union| P43
+    P71 -.-|💍 union| P45
+    P75 -.-|💍 union| P41
+    P46 -.-|💍 union| P79
+    P81 -.-|💍 union| P82
+    P84 -.-|💍 union| P85
+    P89 -.-|💍 union| P90
+    P64 -.-|💍 union| P92
+    P94 -.-|💍 union| P87
+    P96 -.-|💍 union| P97
+    P101 -.-|💍 union| P102
+    P103 -.-|💍 union| P106
+    P110 -.-|💍 union| P111
+    P93 -.-|💍 union| P113
+    P107 -.-|💍 union| P117
+    P109 -.-|💍 union| P119
+    P122 -.-|💍 union| P123
+    P124 -.-|💍 union| P125
+    P129 -.-|💍 union| P130
+    P132 -.-|💍 union| P133
+    P134 -.-|💍 union| P135
+    P140 -.-|💍 union| P141
+    P146 -.-|💍 union| P147
+    P149 -.-|💍 union| P150
+    P153 -.-|💍 union| P154
+    P138 -.-|💍 union| P156
+    P159 -.-|💍 union| P145
+    P163 -.-|💍 union| P164
+    P165 -.-|💍 union| P166
+    P167 -.-|💍 union| P168
+    P169 -.-|💍 union| P170
+    P171 -.-|💍 union| P172
+    P173 -.-|💍 union| P174
+    P55 -.-|💍 union| P176
+    P178 -.-|💍 union| P179
+    P181 -.-|💍 union| P182
+    P180 -.-|💍 union| P183
+    P186 -.-|💍 union| P187
+    P188 -.-|💍 union| P189
+    P190 -.-|💍 union| P184
+    P195 -.-|💍 union| P185
+    P196 -.-|💍 union| P197
+    P198 -.-|💍 union| P199
+    P200 -.-|💍 union| P201
+    P202 -.-|💍 union| P203
+    P205 -.-|💍 union| P206
+    P208 -.-|💍 union| P213
+    P204 -.-|💍 union| P215
+    P217 -.-|💍 union| P218
+    P219 -.-|💍 union| P220
+    P212 -.-|💍 union| P222
+    P223 -.-|💍 union| P224
+    P225 -.-|💍 union| P226
+    P227 -.-|💍 union| P228
+    P229 -.-|💍 union| P230
+    P231 -.-|💍 union| P232
 
                 </div>
             </div>
@@ -843,7 +918,7 @@ graph BT
     </div>
 
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
-        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:21:36
+        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:33:16
     </footer>
 
     <script>
@@ -1257,6 +1332,17 @@ graph BT
                 frontier = next;
             }
 
+            // Inclure systématiquement les conjoints (co-parents des enfants des personnes du sous-arbre)
+            const currentIds = Array.from(ids);
+            currentIds.forEach(personId => {
+                const children = filiation.filter(e => e.source_id === personId).map(e => e.target_id);
+                children.forEach(childId => {
+                    filiation.filter(e => e.target_id === childId && e.source_id !== personId).forEach(e => {
+                        ids.add(e.source_id);
+                    });
+                });
+            });
+
             return { ids, directIds };
         }
 
@@ -1275,6 +1361,7 @@ graph BT
                 'graph BT',
                 "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
                 "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4",
+                "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:8,ry:8",
             ];
             const idMap = new Map();
             let counter = 1;
@@ -1295,18 +1382,56 @@ graph BT
                     if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
                     lines.push('    ' + safeId + '["' + label + '"]:::defaut');
                 } else {
-                    // Collatéraux (frères & sœurs) : police plus claire (#64748b), style atténué, bordure pointillée
+                    // Collatéraux (frères & sœurs) / conjoints : police plus claire (#64748b), style atténué, bordure pointillée
                     label = '<span style="color:#64748b;"><b>' + firstName + '</b><br/><b>' + lastName + '</b></span>';
                     if (dates) label += '<br/><span style="color:#94a3b8;font-size:11px;">(' + dates + ')</span>';
                     if (node.place) label += '<br/><span style="color:#94a3b8;font-size:11px;"><i>' + mermaidSafe(node.place) + '</i></span>';
                     lines.push('    ' + safeId + '["' + label + '"]:::collat');
                 }
             });
-            EDGES.forEach(e => {
-                const source = idMap.get(e.source_id);
-                const target = idMap.get(e.target_id);
-                if (source && target) lines.push('    ' + source + ' --> ' + target);
+
+            // Regrouper par famille/couple (représentation des logiciels de généalogie type Heredis / Geneanet / Gramps)
+            const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+            const parentsMap = new Map();
+
+            filiation.forEach(e => {
+                if (ids.has(e.source_id) && ids.has(e.target_id)) {
+                    if (!parentsMap.has(e.target_id)) parentsMap.set(e.target_id, new Set());
+                    parentsMap.get(e.target_id).add(e.source_id);
+                }
             });
+
+            const familyNodes = new Map();
+            let famCounter = 1;
+
+            parentsMap.forEach((parentsSet, childId) => {
+                const parentsList = Array.from(parentsSet).sort();
+                if (parentsList.length === 0) return;
+                const famKey = parentsList.join('__');
+                if (!familyNodes.has(famKey)) {
+                    const famId = 'FAM' + (famCounter++);
+                    familyNodes.set(famKey, { famId, parents: parentsList, children: [] });
+                }
+                familyNodes.get(famKey).children.push(childId);
+            });
+
+            familyNodes.forEach(fam => {
+                const famId = fam.famId;
+                if (fam.parents.length >= 2) {
+                    lines.push('    ' + famId + '["💍 Union"]:::union');
+                } else {
+                    lines.push('    ' + famId + '["🏠"]:::union');
+                }
+                fam.parents.forEach(pId => {
+                    const sId = idMap.get(pId);
+                    if (sId) lines.push('    ' + sId + ' --> ' + famId);
+                });
+                fam.children.forEach(cId => {
+                    const sId = idMap.get(cId);
+                    if (sId) lines.push('    ' + famId + ' --> ' + sId);
+                });
+            });
+
             return lines.join('\n');
         }
 

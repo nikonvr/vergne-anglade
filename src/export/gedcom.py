@@ -259,4 +259,12 @@ class GedcomExporter:
             if source and target:
                 lines.append(f"    {source} --> {target}")
 
+        # Liens d'union / mariage entre conjoints (co-parents ayant un enfant en commun)
+        families, _, _ = self._build_families(tree)
+        for family in families:
+            h, w = family["husb"], family["wife"]
+            if h and w and h in id_map and w in id_map:
+                s1, s2 = id_map[h], id_map[w]
+                lines.append(f"    {s1} -.-|💍 union| {s2}")
+
         return "\n".join(lines) + "\n"

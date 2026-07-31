@@ -54,6 +54,11 @@ def _short_place(place: str | None) -> str:
     return place.split(",")[0].strip()
 
 
+def sort_nodes_data(nodes: list[dict]) -> list[dict]:
+    """Trie la liste d'individus par patronyme (majuscules) puis prénom (majuscules)."""
+    return sorted(nodes, key=lambda n: ((n.get("last_name") or "").upper(), (n.get("first_name") or "").upper()))
+
+
 def build_standalone_html() -> Path:
     """Régénère index.html. Lève FileNotFoundError si le fonds source est introuvable."""
     gedcom_path = resolve_gedcom_path()
@@ -166,7 +171,7 @@ def build_standalone_html() -> Path:
         for nid, p in tree.nodes.items()
     ]
     # Tri par ordre alphabétique : Patronyme puis Prénom (ex: ANGLADE, puis VERGNE...)
-    nodes_data.sort(key=lambda n: ((n["last_name"] or "").upper(), (n["first_name"] or "").upper()))
+    nodes_data = sort_nodes_data(nodes_data)
 
     # Liens de filiation, nécessaires côté client pour le zoom sur une branche (le sous-arbre
     # se calcule en JavaScript : cette page statique n'a pas de serveur à interroger).
@@ -895,6 +900,17 @@ def build_standalone_html() -> Path:
                 frontier = next;
             }}
 
+            // Inclure systématiquement les conjoints (co-parents des enfants des personnes du sous-arbre)
+            const currentIds = Array.from(ids);
+            currentIds.forEach(personId => {{
+                const children = filiation.filter(e => e.source_id === personId).map(e => e.target_id);
+                children.forEach(childId => {{
+                    filiation.filter(e => e.target_id === childId && e.source_id !== personId).forEach(e => {{
+                        ids.add(e.source_id);
+                    }});
+                }});
+            }});
+
             return {{ ids, directIds }};
         }}
 
@@ -913,6 +929,7 @@ def build_standalone_html() -> Path:
                 'graph BT',
                 "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
                 "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4",
+                "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:8,ry:8",
             ];
             const idMap = new Map();
             let counter = 1;
@@ -933,18 +950,56 @@ def build_standalone_html() -> Path:
                     if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
                     lines.push('    ' + safeId + '["' + label + '"]:::defaut');
                 }} else {{
-                    // Collatéraux (frères & sœurs) : police plus claire (#64748b), style atténué, bordure pointillée
+                    // Collatéraux (frères & sœurs) / conjoints : police plus claire (#64748b), style atténué, bordure pointillée
                     label = '<span style="color:#64748b;"><b>' + firstName + '</b><br/><b>' + lastName + '</b></span>';
                     if (dates) label += '<br/><span style="color:#94a3b8;font-size:11px;">(' + dates + ')</span>';
                     if (node.place) label += '<br/><span style="color:#94a3b8;font-size:11px;"><i>' + mermaidSafe(node.place) + '</i></span>';
                     lines.push('    ' + safeId + '["' + label + '"]:::collat');
                 }}
             }});
-            EDGES.forEach(e => {{
-                const source = idMap.get(e.source_id);
-                const target = idMap.get(e.target_id);
-                if (source && target) lines.push('    ' + source + ' --> ' + target);
+
+            // Regrouper par famille/couple (représentation des logiciels de généalogie type Heredis / Geneanet / Gramps)
+            const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+            const parentsMap = new Map();
+
+            filiation.forEach(e => {{
+                if (ids.has(e.source_id) && ids.has(e.target_id)) {{
+                    if (!parentsMap.has(e.target_id)) parentsMap.set(e.target_id, new Set());
+                    parentsMap.get(e.target_id).add(e.source_id);
+                }}
             }});
+
+            const familyNodes = new Map();
+            let famCounter = 1;
+
+            parentsMap.forEach((parentsSet, childId) => {{
+                const parentsList = Array.from(parentsSet).sort();
+                if (parentsList.length === 0) return;
+                const famKey = parentsList.join('__');
+                if (!familyNodes.has(famKey)) {{
+                    const famId = 'FAM' + (famCounter++);
+                    familyNodes.set(famKey, {{ famId, parents: parentsList, children: [] }});
+                }}
+                familyNodes.get(famKey).children.push(childId);
+            }});
+
+            familyNodes.forEach(fam => {{
+                const famId = fam.famId;
+                if (fam.parents.length >= 2) {{
+                    lines.push('    ' + famId + '["💍 Union"]:::union');
+                }} else {{
+                    lines.push('    ' + famId + '["🏠"]:::union');
+                }}
+                fam.parents.forEach(pId => {{
+                    const sId = idMap.get(pId);
+                    if (sId) lines.push('    ' + sId + ' --> ' + famId);
+                }});
+                fam.children.forEach(cId => {{
+                    const sId = idMap.get(cId);
+                    if (sId) lines.push('    ' + famId + ' --> ' + sId);
+                }});
+            }});
+
             return lines.join('\\n');
         }}
 

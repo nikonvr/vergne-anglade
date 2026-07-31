@@ -213,30 +213,55 @@ def check_single_source_of_surnames() -> List[Violation]:
 
 # ----------------------------------------------------- INV-06 filtre de patronyme exact
 def check_surname_matching_is_exact() -> List[Violation]:
-    """L'importeur doit comparer les patronymes exactement, jamais par sous-chaîne."""
-    importer = PROJECT_ROOT / "src" / "parser" / "gedcom_importer.py"
-    if not importer.exists():
-        return [Violation("src/parser/gedcom_importer.py", "fichier manquant.")]
-    stripped = code_only(importer.read_text(encoding="utf-8", errors="ignore"))
+    """Les importeurs (GEDCOM et CSV) doivent comparer les patronymes exactement, jamais par sous-chaîne."""
     violations: List[Violation] = []
-    if "same_surname_group" not in stripped:
-        violations.append(
-            Violation(
-                "src/parser/gedcom_importer.py",
-                "le filtre de branche doit utiliser same_surname_group (comparaison exacte). "
-                "La comparaison par sous-chaîne rattachait 15 individus à tort : "
-                "'VERGNE' in 'LAVERGNE' est vrai, de même que BRUN pour BRUNET.",
+
+    # 1. gedcom_importer.py
+    gedcom_importer = PROJECT_ROOT / "src" / "parser" / "gedcom_importer.py"
+    if not gedcom_importer.exists():
+        violations.append(Violation("src/parser/gedcom_importer.py", "fichier manquant."))
+    else:
+        stripped = code_only(gedcom_importer.read_text(encoding="utf-8", errors="ignore"))
+        if "same_surname_group" not in stripped and "is_branch_surname" not in stripped:
+            violations.append(
+                Violation(
+                    "src/parser/gedcom_importer.py",
+                    "le filtre de branche doit utiliser same_surname_group ou is_branch_surname (comparaison exacte). "
+                    "La comparaison par sous-chaîne rattachait 15 individus à tort : "
+                    "'VERGNE' in 'LAVERGNE' est vrai, de même que BRUN pour BRUNET.",
+                )
             )
-        )
-    if re.search(r"\bin\s*\(\s*(?:ln|last_name)\b", stripped) or re.search(
-        r"for\s+s\s+in\s+surnames\s*\)", stripped
-    ):
-        violations.append(
-            Violation(
-                "src/parser/gedcom_importer.py",
-                "comparaison de patronyme par sous-chaîne détectée.",
+        if re.search(r"\bin\s*\(\s*(?:ln|last_name)\b", stripped) or re.search(
+            r"for\s+s\s+in\s+surnames\s*\)", stripped
+        ):
+            violations.append(
+                Violation(
+                    "src/parser/gedcom_importer.py",
+                    "comparaison de patronyme par sous-chaîne détectée.",
+                )
             )
-        )
+
+    # 2. csv_importer.py
+    csv_importer = PROJECT_ROOT / "src" / "parser" / "csv_importer.py"
+    if not csv_importer.exists():
+        violations.append(Violation("src/parser/csv_importer.py", "fichier manquant."))
+    else:
+        stripped_csv = code_only(csv_importer.read_text(encoding="utf-8", errors="ignore"))
+        if "is_branch_surname" not in stripped_csv and "same_surname_group" not in stripped_csv:
+            violations.append(
+                Violation(
+                    "src/parser/csv_importer.py",
+                    "le filtre de patronyme CSV doit utiliser is_branch_surname ou same_surname_group (comparaison exacte).",
+                )
+            )
+        if re.search(r"\bnot\s+in\s+last_name\b", stripped_csv) or re.search(r"\bin\s+last_name\b", stripped_csv):
+            violations.append(
+                Violation(
+                    "src/parser/csv_importer.py",
+                    "comparaison de patronyme par sous-chaîne détectée.",
+                )
+            )
+
     return violations
 
 

@@ -351,14 +351,7 @@ class TreeBuilder:
 
         Remonte au plus `up` générations par les arêtes de filiation ENTRANTES (parents)
         et descend au plus `down` générations par les arêtes SORTANTES (enfants). Si
-        include_siblings est True, inclut également les frères & sœurs à chaque niveau.
-
-        Retourne un ensemble vide si `root_id` n'existe pas dans le graphe. Si la racine
-        existe mais n'a aucune arête de filiation (individu isolé), retourne {root_id}.
-
-        Le bornage par génération (et non par épuisement du front de recherche) rend cette
-        méthode sûre même face à un cycle de filiation accidentel : le nombre d'itérations
-        est plafonné par `up`/`down`, jamais par la taille du graphe.
+        include_siblings est True, inclut également la fratrie à chaque niveau d'ascendance.
         """
         if not self.graph.has_node(root_id):
             return set()
