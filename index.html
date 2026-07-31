@@ -21,6 +21,18 @@
     <style>
         .fade-in { animation: fadeIn 0.4s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 30s linear infinite;
+        }
+        .animate-marquee:hover {
+            animation-play-state: paused;
+        }
         html { scroll-behavior: smooth; }
     </style>
 </head>
@@ -41,6 +53,22 @@
             </div>
         </div>
     </header>
+
+    <!-- Bandeau Défilant d'Aide Visiteur -->
+    <div class="bg-brand-900 text-white border-t border-brand-800 py-2.5 px-4 shadow-inner text-xs overflow-hidden">
+        <div class="max-w-7xl mx-auto flex items-center gap-3">
+            <span class="bg-brand-500 text-white font-extrabold px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider shrink-0 shadow-sm">📢 GUIDE VISITEUR</span>
+            <div class="overflow-hidden relative w-full flex items-center">
+                <div class="animate-marquee cursor-pointer font-medium text-brand-100" title="Passez votre souris pour mettre en pause">
+                    📖 <b>BIENVENUE SUR LA GÉNÉALOGIE VERGNE !</b> &nbsp;&bull;&nbsp; 
+                    🌳 <b>1. L'ARBRE VISUEL :</b> Chaque rectangle représente un membre, les flèches montrent la filiation (Parent &rarr; Enfant) &nbsp;&bull;&nbsp; 
+                    📋 <b>2. LE TABLEAU :</b> Retrouvez tous les membres, métiers et actes d'archives &nbsp;&bull;&nbsp; 
+                    🔍 <b>3. LA RECHERCHE :</b> Tapez un prénom dans la case pour filtrer instantanément &nbsp;&bull;&nbsp; 
+                    📥 <b>4. EXPORTATION :</b> Cliquez sur "Exporter GEDCOM" en haut à droite pour télécharger la sauvegarde ! (Survolez avec votre souris pour mettre en pause ce défilement)
+                </div>
+            </div>
+        </div>
+    </div>
 
     <main class="max-w-7xl mx-auto w-full flex-1 p-6 md:p-8 space-y-8 fade-in">
         <!-- Bandeau d'Accueil Didactique -->
