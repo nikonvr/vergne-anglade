@@ -8,6 +8,21 @@ from src.export.gedcom import GedcomExporter
 
 def build_standalone_html():
     db = DatabaseManager("sqlite:///certus_genealogy.db")
+    db.init_db()
+    
+    from src.database.repository import ActRepository
+    from src.parser.gedcom_importer import GedcomImporter
+    
+    gedcom_path = Path("D:/drivefl/gene/2022/2026-02_export.ged")
+    if gedcom_path.exists():
+        with db.get_session() as session:
+            repo = ActRepository(session)
+            if not repo.get_all_acts():
+                importer = GedcomImporter(gedcom_path)
+                acts = importer.parse_branch(["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL"])
+                for act in acts:
+                    repo.save_act(act)
+
     orch = CertusOrchestrator(db)
     tree = orch.generate_global_tree()
     exporter = GedcomExporter()
