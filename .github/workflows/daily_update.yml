@@ -1,0 +1,37 @@
+name: Veille Généalogique Quotidienne (CERTUS Cron)
+
+on:
+  schedule:
+    # Exécution automatique chaque nuit à 00:00 UTC (minuit)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Permet de lancer le robot manuellement depuis l'onglet Actions sur GitHub
+
+jobs:
+  daily-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installation des dépendances
+        run: |
+          pip install uv
+          uv pip install --system pytest fastapi uvicorn requests httpx networkx jinja2 pydantic
+
+      - name: Exécution du robot de recherche d'archives & mise à jour
+        run: |
+          python scripts/daily_archival_cron.py
+
+      - name: Publication des nouveaux ancêtres sur GitHub Pages
+        run: |
+          git config user.name "CERTUS Archival Bot"
+          git config user.email "bot@certus-genealogy.org"
+          git add index.html vergne_genealogy_standalone.html certus_genealogy.db
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Nouvelles données généalogiques d'archives" && git push)
