@@ -985,27 +985,31 @@ def build_standalone_html() -> Path:
             }});
 
             const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
-            const parentsMap = new Map();
+            const globalParentsByChild = new Map();
 
             filiation.forEach(e => {{
-                if (ids.has(e.source_id) && ids.has(e.target_id)) {{
-                    if (!parentsMap.has(e.target_id)) parentsMap.set(e.target_id, new Set());
-                    parentsMap.get(e.target_id).add(e.source_id);
-                }}
+                if (!globalParentsByChild.has(e.target_id)) globalParentsByChild.set(e.target_id, new Set());
+                globalParentsByChild.get(e.target_id).add(e.source_id);
             }});
 
             const familyNodes = new Map();
             let famCounter = 1;
 
-            parentsMap.forEach((parentsSet, childId) => {{
+            globalParentsByChild.forEach((parentsSet, childId) => {{
                 const parentsList = Array.from(parentsSet).sort();
                 if (parentsList.length === 0) return;
+
+                const presentParents = parentsList.filter(p => ids.has(p));
+                if (presentParents.length === 0) return;
+
                 const famKey = parentsList.join('__');
                 if (!familyNodes.has(famKey)) {{
                     const famId = 'FAM' + (famCounter++);
-                    familyNodes.set(famKey, {{ famId, parents: parentsList, children: [] }});
+                    familyNodes.set(famKey, {{ famId, parents: presentParents, children: [] }});
                 }}
-                familyNodes.get(famKey).children.push(childId);
+                if (ids.has(childId)) {{
+                    familyNodes.get(famKey).children.push(childId);
+                }}
             }});
 
             const placedNodes = new Set();

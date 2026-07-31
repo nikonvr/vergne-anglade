@@ -82,7 +82,7 @@
                 <h1 class="text-2xl font-bold flex flex-wrap items-center gap-2">
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page publique</span>
-                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:41:49</span>
+                    <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-mono">MàJ : 31/07/2026 à 23:44:26</span>
                 </h1>
                 <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERGNES / VERNHE / VERNHES / ANGLADE / BRUN / JEHL / IEHL</strong></p>
             </div>
@@ -1067,7 +1067,7 @@ graph TD
     </div>
 
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
-        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:41:49
+        CERTUS GENEALOGY — page publique générée le 31/07/2026 à 23:44:26
     </footer>
 
     <script>
@@ -1560,27 +1560,31 @@ graph TD
             });
 
             const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
-            const parentsMap = new Map();
+            const globalParentsByChild = new Map();
 
             filiation.forEach(e => {
-                if (ids.has(e.source_id) && ids.has(e.target_id)) {
-                    if (!parentsMap.has(e.target_id)) parentsMap.set(e.target_id, new Set());
-                    parentsMap.get(e.target_id).add(e.source_id);
-                }
+                if (!globalParentsByChild.has(e.target_id)) globalParentsByChild.set(e.target_id, new Set());
+                globalParentsByChild.get(e.target_id).add(e.source_id);
             });
 
             const familyNodes = new Map();
             let famCounter = 1;
 
-            parentsMap.forEach((parentsSet, childId) => {
+            globalParentsByChild.forEach((parentsSet, childId) => {
                 const parentsList = Array.from(parentsSet).sort();
                 if (parentsList.length === 0) return;
+
+                const presentParents = parentsList.filter(p => ids.has(p));
+                if (presentParents.length === 0) return;
+
                 const famKey = parentsList.join('__');
                 if (!familyNodes.has(famKey)) {
                     const famId = 'FAM' + (famCounter++);
-                    familyNodes.set(famKey, { famId, parents: parentsList, children: [] });
+                    familyNodes.set(famKey, { famId, parents: presentParents, children: [] });
                 }
-                familyNodes.get(famKey).children.push(childId);
+                if (ids.has(childId)) {
+                    familyNodes.get(famKey).children.push(childId);
+                }
             });
 
             const placedNodes = new Set();
