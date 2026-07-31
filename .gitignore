@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+test_certus_temp.db
+downloads/
