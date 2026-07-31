@@ -380,10 +380,11 @@ def build_standalone_html():
 </body>
 </html>"""
 
-    out_file = Path("vergne_genealogy_standalone.html")
-    with open(out_file, "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print(f"SUCCESS: {out_file.absolute()}")
+    for out_filename in ["vergne_genealogy_standalone.html", "index.html"]:
+        out_file = Path(out_filename)
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        print(f"SUCCESS: {out_file.absolute()}")
 
 if __name__ == "__main__":
     build_standalone_html()
