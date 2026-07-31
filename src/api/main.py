@@ -306,9 +306,24 @@ async def get_stats():
 
 
 @app.get("/api/tree", response_model=FamilyTree)
-async def get_global_tree():
-    """Arbre généalogique reconstruit."""
-    return _get_global_tree()
+async def get_global_tree(
+    person_id: Optional[str] = None,
+    up: int = 3,
+    down: int = 3,
+):
+    """Arbre généalogique reconstruit.
+
+    Sans person_id : arbre complet (comportement inchangé, rétrocompatible). Avec
+    person_id : sous-arbre centré sur cette personne, borné à `up` générations
+    d'ascendants et `down` générations de descendants.
+    """
+    orchestrator = _get_orchestrator()
+    tree = orchestrator.generate_global_tree()
+    if person_id is None:
+        return tree
+    if person_id not in tree.nodes:
+        raise HTTPException(status_code=404, detail="Personne non trouvée.")
+    return orchestrator.tree_builder.subtree(tree, person_id, up=up, down=down)
 
 
 @app.get("/api/relationship", response_model=RelationshipAnalysisResponse)
@@ -351,9 +366,19 @@ async def export_json_graph():
 
 
 @app.get("/api/export/mermaid")
-async def export_mermaid_endpoint():
-    """Syntaxe du diagramme Mermaid pour le rendu dans l'interface."""
-    return {"mermaid": GedcomExporter().export_mermaid(_get_global_tree())}
+async def export_mermaid_endpoint(
+    person_id: Optional[str] = None,
+    up: int = 3,
+    down: int = 3,
+):
+    """Syntaxe Mermaid du diagramme, complet ou restreint à un sous-arbre (voir /api/tree)."""
+    orchestrator = _get_orchestrator()
+    tree = orchestrator.generate_global_tree()
+    if person_id is not None:
+        if person_id not in tree.nodes:
+            raise HTTPException(status_code=404, detail="Personne non trouvée.")
+        tree = orchestrator.tree_builder.subtree(tree, person_id, up=up, down=down)
+    return {"mermaid": GedcomExporter().export_mermaid(tree)}
 
 
 @app.get("/api/export/gedcom")

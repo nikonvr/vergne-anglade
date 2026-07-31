@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 import networkx as nx
 
@@ -344,3 +344,59 @@ class TreeBuilder:
             return []
         except nx.NodeNotFound:
             return []
+
+    # ------------------------------------------------------------------ sous-arbres
+    def subtree_ids(self, root_id: str, up: int = 3, down: int = 3) -> Set[str]:
+        """Identifiants du sous-arbre centré sur `root_id` (racine incluse).
+
+        Remonte au plus `up` générations par les arêtes de filiation ENTRANTES (parents)
+        et descend au plus `down` générations par les arêtes SORTANTES (enfants). Les
+        conjoints des descendants apparaissent naturellement dans le résultat : un enfant
+        porte une arête entrante par parent, donc son autre parent ressort comme
+        prédécesseur du même nœud descendant, sans traitement particulier.
+
+        Retourne un ensemble vide si `root_id` n'existe pas dans le graphe. Si la racine
+        existe mais n'a aucune arête de filiation (individu isolé), retourne {root_id}.
+
+        Le bornage par génération (et non par épuisement du front de recherche) rend cette
+        méthode sûre même face à un cycle de filiation accidentel : le nombre d'itérations
+        est plafonné par `up`/`down`, jamais par la taille du graphe.
+        """
+        if not self.graph.has_node(root_id):
+            return set()
+
+        ids: Set[str] = {root_id}
+        dag = self._filiation_dag()
+        if not dag.has_node(root_id):
+            return ids
+
+        frontier = {root_id}
+        for _ in range(max(0, up)):
+            frontier = {parent for node in frontier for parent in dag.predecessors(node)}
+            if not frontier:
+                break
+            ids |= frontier
+
+        frontier = {root_id}
+        for _ in range(max(0, down)):
+            frontier = {child for node in frontier for child in dag.successors(node)}
+            if not frontier:
+                break
+            ids |= frontier
+
+        return ids
+
+    def subtree(self, tree: FamilyTree, root_id: str, up: int = 3, down: int = 3) -> FamilyTree:
+        """Restreint un arbre déjà construit au sous-arbre centré sur `root_id`.
+
+        `tree` doit provenir de `process_acts()` sur CE builder : le filtrage s'appuie sur
+        `self.graph`, qui n'existe que sur l'instance ayant construit l'arbre (voir le piège
+        du cache d'arbre décrit dans AGENTS.md — le graphe networkx vit sur l'instance, pas
+        sur le FamilyTree lui-même).
+        """
+        keep = self.subtree_ids(root_id, up=up, down=down)
+        nodes = {nid: person for nid, person in tree.nodes.items() if nid in keep}
+        edges = [
+            rel for rel in tree.edges if rel.source_id in keep and rel.target_id in keep
+        ]
+        return FamilyTree(nodes=nodes, edges=edges)

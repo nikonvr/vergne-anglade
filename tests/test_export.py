@@ -144,3 +144,18 @@ def test_mermaid_neutralise_les_caracteres_dangereux():
     assert label.count('"') == 2
     assert "[x]" not in label
     assert "Aurillac" in label and "15000" not in label
+
+
+def test_mermaid_prenom_et_nom_sur_deux_lignes():
+    """Un nom complet sur une seule ligne dépasse souvent la largeur de la boîte Mermaid
+    et se fait tronquer ("Françoise Jeanne Marie AN" au lieu de "...ANGLADE") : prénom et
+    nom doivent être séparés par un retour à la ligne."""
+    tree = FamilyTree(
+        nodes={
+            "X": ConsolidatedPerson(id="X", first_name="Françoise Jeanne Marie", last_name="ANGLADE")
+        }
+    )
+    mermaid = GedcomExporter().export_mermaid(tree)
+
+    label = next(line for line in mermaid.splitlines() if line.strip().startswith("P1["))
+    assert "<b>Françoise Jeanne Marie</b><br/><b>ANGLADE</b>" in label

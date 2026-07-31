@@ -166,6 +166,13 @@ def build_standalone_html() -> Path:
         for nid, p in tree.nodes.items()
     ]
 
+    # Liens de filiation, nécessaires côté client pour le zoom sur une branche (le sous-arbre
+    # se calcule en JavaScript : cette page statique n'a pas de serveur à interroger).
+    edges_data = [
+        {"source_id": rel.source_id, "target_id": rel.target_id, "rel_type": rel.rel_type}
+        for rel in tree.edges
+    ]
+
     # ------------------------------------------------------- métriques calculées
     # Mod7 : plus aucun chiffre ni affirmation en dur dans la page.
     node_count = len(nodes_data)
@@ -405,6 +412,37 @@ def build_standalone_html() -> Path:
         </div>
     </div>
 
+    <!-- Sous-arbre : zoom sur une branche (ascendants + descendants d'une personne) -->
+    <div id="subtree-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh]">
+            <div class="bg-brand-900 text-white px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🌳</span>
+                    <h3 id="subtree-title" class="font-bold text-lg"></h3>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <label class="flex items-center gap-1 text-brand-100">Ascendants
+                        <input id="subtree-up" type="number" min="0" max="15" value="3" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
+                    </label>
+                    <label class="flex items-center gap-1 text-brand-100">Descendants
+                        <input id="subtree-down" type="number" min="0" max="15" value="3" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
+                    </label>
+                    <button id="subtree-recompute" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg font-bold transition">Recalculer</button>
+                </div>
+                <button id="subtree-close-top" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
+            </div>
+            <p id="subtree-count" class="px-6 pt-3 text-xs text-slate-500"></p>
+            <div class="p-4 flex-1 overflow-hidden">
+                <div id="subtree-container" class="w-full h-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden" style="min-height: 420px;">
+                    <div id="subtree-mermaid" class="w-full h-full"></div>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 text-right">
+                <button id="subtree-close-bottom" class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-bold transition">Fermer</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
         CERTUS GENEALOGY — page publique générée le {build_time_str}
     </footer>
@@ -413,6 +451,7 @@ def build_standalone_html() -> Path:
         const NODES = {_json_for_html(nodes_data)};
         const ACTS = {_json_for_html(acts_data)};
         const NODE_ACTS = {_json_for_html(node_acts)};
+        const EDGES = {_json_for_html(edges_data)};
         const RAW_GEDCOM = {_json_for_html(gedcom_code)};
 
         const ACTS_BY_ID = new Map(ACTS.map(a => [a.id, a]));
@@ -450,7 +489,7 @@ def build_standalone_html() -> Path:
                 tr.appendChild(mentions);
 
                 const actionCell = document.createElement('td');
-                actionCell.className = 'px-4 py-3 text-right';
+                actionCell.className = 'px-4 py-3 text-right space-x-1.5 whitespace-nowrap';
                 const count = (NODE_ACTS[item.id] || []).length;
                 const button = document.createElement('button');
                 button.className = count
@@ -459,7 +498,16 @@ def build_standalone_html() -> Path:
                 button.textContent = count ? '📜 Voir les actes (' + count + ')' : 'Aucun acte';
                 button.disabled = !count;
                 button.setAttribute('data-node-id', item.id);
+                button.setAttribute('data-role', 'acts');
                 actionCell.appendChild(button);
+
+                const branchButton = document.createElement('button');
+                branchButton.className = 'inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition shadow-sm';
+                branchButton.textContent = '🌳 Voir la branche';
+                branchButton.setAttribute('data-node-id', item.id);
+                branchButton.setAttribute('data-role', 'subtree');
+                actionCell.appendChild(branchButton);
+
                 tr.appendChild(actionCell);
                 tbody.appendChild(tr);
             }});
@@ -588,6 +636,131 @@ def build_standalone_html() -> Path:
 
         function closeModal() {{ document.getElementById('act-modal').classList.add('hidden'); }}
 
+        // ---------------------------------------------------------------- sous-arbre (zoom)
+        // Cette page est statique (GitHub Pages, sans serveur) : le sous-arbre se calcule
+        // ici, en JavaScript, à partir des mêmes arêtes de filiation que celles utilisées
+        // côté Python (src/genealogy/builder.py : TreeBuilder.subtree_ids). Les deux
+        // implémentations partagent la même sémantique mais pas le même code : elles
+        // tournent dans deux environnements distincts qui ne peuvent pas s'importer l'une
+        // l'autre.
+        const FILIATION_REL_TYPES = new Set(['pere', 'mere', 'parent', 'father', 'mother', 'parent_of', '']);
+        let subtreePanZoom = null;
+        let currentSubtreeRoot = null;
+
+        function subtreeIds(rootId, up, down) {{
+            if (!NODES_BY_ID.has(rootId)) return new Set();
+            const ids = new Set([rootId]);
+            const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+
+            let frontier = new Set([rootId]);
+            for (let i = 0; i < Math.max(0, up); i++) {{
+                const next = new Set();
+                filiation.forEach(e => {{ if (frontier.has(e.target_id)) next.add(e.source_id); }});
+                if (next.size === 0) break;
+                next.forEach(id => ids.add(id));
+                frontier = next;
+            }}
+
+            frontier = new Set([rootId]);
+            for (let i = 0; i < Math.max(0, down); i++) {{
+                const next = new Set();
+                filiation.forEach(e => {{ if (frontier.has(e.source_id)) next.add(e.target_id); }});
+                if (next.size === 0) break;
+                next.forEach(id => ids.add(id));
+                frontier = next;
+            }}
+
+            return ids;
+        }}
+
+        // Neutralise les caractères qui casseraient la syntaxe Mermaid dans un libellé entre
+        // guillemets (même liste que _mermaid_safe côté Python, pour un rendu cohérent).
+        function mermaidSafe(value) {{
+            return (value || '').replace(/["\\[\\]{{}}|<>`]/g, '').replace(/\\s+/g, ' ').trim();
+        }}
+
+        function buildSubtreeMermaid(ids) {{
+            const lines = [
+                'graph BT',
+                "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
+            ];
+            const idMap = new Map();
+            let counter = 1;
+            ids.forEach(nid => {{
+                const node = NODES_BY_ID.get(nid);
+                if (!node) return;
+                const safeId = 'S' + (counter++);
+                idMap.set(nid, safeId);
+                const firstName = mermaidSafe(node.first_name) || 'Inconnu';
+                const lastName = mermaidSafe(node.last_name) || 'Inconnu';
+                const dates = [node.birth_date, node.death_date].filter(Boolean).map(mermaidSafe).join(' - ');
+                // Prénom et nom sur deux lignes : sur une seule ligne, un nom complet
+                // dépasse souvent la largeur de la boîte et se fait tronquer par Mermaid.
+                let label = '<b>' + firstName + '</b><br/><b>' + lastName + '</b>';
+                if (dates) label += '<br/>(' + dates + ')';
+                if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
+                lines.push('    ' + safeId + '["' + label + '"]:::defaut');
+            }});
+            EDGES.forEach(e => {{
+                const source = idMap.get(e.source_id);
+                const target = idMap.get(e.target_id);
+                if (source && target) lines.push('    ' + source + ' --> ' + target);
+            }});
+            return lines.join('\\n');
+        }}
+
+        async function renderSubtree(rootId) {{
+            const up = parseInt(document.getElementById('subtree-up').value, 10) || 0;
+            const down = parseInt(document.getElementById('subtree-down').value, 10) || 0;
+            const ids = subtreeIds(rootId, up, down);
+
+            document.getElementById('subtree-count').textContent =
+                ids.size + ' individu(s) dans cette branche (' + up + ' génération(s) en amont, ' +
+                down + ' en aval).';
+
+            if (subtreePanZoom) {{ subtreePanZoom.destroy(); subtreePanZoom = null; }}
+            const container = document.getElementById('subtree-mermaid');
+            container.replaceChildren();
+
+            const graphDefinition = buildSubtreeMermaid(ids);
+            const renderId = 'subtree-svg-' + Date.now();
+            const {{ svg }} = await mermaid.render(renderId, graphDefinition);
+            container.innerHTML = svg;
+
+            const svgEl = container.querySelector('svg');
+            if (svgEl) {{
+                svgEl.style.maxWidth = 'none';
+                svgEl.style.width = '100%';
+                svgEl.style.height = '100%';
+                subtreePanZoom = svgPanZoom(svgEl, {{
+                    zoomEnabled: true,
+                    controlIconsEnabled: false,
+                    mouseWheelZoomEnabled: true,
+                    preventMouseEventsDefault: true,
+                    fit: true,
+                    center: true,
+                    minZoom: 0.1,
+                    maxZoom: 10,
+                }});
+            }}
+        }}
+
+        function openSubtreeModal(rootId) {{
+            const node = NODES_BY_ID.get(rootId);
+            if (!node) return;
+            currentSubtreeRoot = rootId;
+            document.getElementById('subtree-title').textContent =
+                'Branche autour de ' + ((node.first_name || '') + ' ' + (node.last_name || '')).trim();
+            document.getElementById('subtree-modal').classList.remove('hidden');
+            renderSubtree(rootId);
+        }}
+
+        function closeSubtreeModal() {{
+            document.getElementById('subtree-modal').classList.add('hidden');
+            if (subtreePanZoom) {{ subtreePanZoom.destroy(); subtreePanZoom = null; }}
+            currentSubtreeRoot = null;
+        }}
+
         function filterTable() {{
             const val = document.getElementById('filter-input').value.toLowerCase();
             renderTable(NODES.filter(n =>
@@ -610,7 +783,13 @@ def build_standalone_html() -> Path:
         // Délégation d'événement : plus aucun gestionnaire construit par concaténation.
         document.getElementById('table-body').addEventListener('click', event => {{
             const button = event.target.closest('button[data-node-id]');
-            if (button && !button.disabled) openModalForNode(button.getAttribute('data-node-id'));
+            if (!button || button.disabled) return;
+            const nodeId = button.getAttribute('data-node-id');
+            if (button.getAttribute('data-role') === 'subtree') {{
+                openSubtreeModal(nodeId);
+            }} else {{
+                openModalForNode(nodeId);
+            }}
         }});
         document.getElementById('filter-input').addEventListener('keyup', filterTable);
         document.getElementById('btn-gedcom').addEventListener('click', downloadGedcom);
@@ -619,7 +798,19 @@ def build_standalone_html() -> Path:
         document.getElementById('act-modal').addEventListener('click', event => {{
             if (event.target === document.getElementById('act-modal')) closeModal();
         }});
-        document.addEventListener('keydown', event => {{ if (event.key === 'Escape') closeModal(); }});
+        document.getElementById('subtree-close-top').addEventListener('click', closeSubtreeModal);
+        document.getElementById('subtree-close-bottom').addEventListener('click', closeSubtreeModal);
+        document.getElementById('subtree-modal').addEventListener('click', event => {{
+            if (event.target === document.getElementById('subtree-modal')) closeSubtreeModal();
+        }});
+        document.getElementById('subtree-recompute').addEventListener('click', () => {{
+            if (currentSubtreeRoot) renderSubtree(currentSubtreeRoot);
+        }});
+        document.addEventListener('keydown', event => {{
+            if (event.key !== 'Escape') return;
+            closeModal();
+            closeSubtreeModal();
+        }});
 
         renderTable(NODES);
     </script>

@@ -157,6 +157,43 @@ def test_websocket_progress():
         websocket.send_text("ping")
 
 
+# ------------------------------------------------------------------ sous-arbres (zoom)
+def test_tree_sans_person_id_retourne_arbre_complet():
+    """Comportement inchangé : sans person_id, /api/tree renvoie tout (rétrocompatible)."""
+    full = client.get("/api/tree").json()
+    assert set(full["nodes"]) >= {"I1", "I2", "I3", "I4"}
+
+
+def test_tree_avec_person_id_retourne_un_sous_ensemble():
+    """Centré sur l'enfant I1 en ne remontant que d'un niveau : les deux parents, pas plus."""
+    body = client.get("/api/tree", params={"person_id": "I1", "up": 1, "down": 0}).json()
+    assert set(body["nodes"]) == {"I1", "I2", "I3"}
+    for edge in body["edges"]:
+        assert edge["source_id"] in body["nodes"]
+        assert edge["target_id"] in body["nodes"]
+
+
+def test_tree_person_id_inconnu_404():
+    response = client.get("/api/tree", params={"person_id": "N_EXISTE_PAS"})
+    assert response.status_code == 404
+
+
+def test_export_mermaid_avec_person_id_est_restreint():
+    full = client.get("/api/export/mermaid").json()["mermaid"]
+    subtree = client.get(
+        "/api/export/mermaid", params={"person_id": "I1", "up": 0, "down": 0}
+    ).json()["mermaid"]
+    # Le sous-arbre à profondeur nulle ne contient qu'un seul nœud : sa syntaxe est
+    # nécessairement plus courte que le diagramme complet (4 individus dans la fixture).
+    assert len(subtree) < len(full)
+    assert "graph BT" in subtree
+
+
+def test_export_mermaid_person_id_inconnu_404():
+    response = client.get("/api/export/mermaid", params={"person_id": "N_EXISTE_PAS"})
+    assert response.status_code == 404
+
+
 def test_pipeline_process_avec_ocr_mocke(api_token, tmp_path, monkeypatch):
     """Le pipeline complet fonctionne quand un moteur OCR est fourni."""
     image = tmp_path / "archive.jpg"

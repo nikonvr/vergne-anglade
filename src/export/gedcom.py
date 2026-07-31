@@ -241,7 +241,10 @@ class GedcomExporter:
                 self._short_place(person.birth_place or person.death_place)
             )
 
-            label = f"<b>{first_name} {last_name}</b>"
+            # Prénom et nom sur deux lignes distinctes : un nom complet sur une seule ligne
+            # dépasse souvent la largeur de la boîte et se fait tronquer par Mermaid
+            # ("Françoise Jeanne Marie AN" au lieu de "...ANGLADE").
+            label = f"<b>{first_name}</b><br/><b>{last_name}</b>"
             if dates:
                 label += f"<br/>{dates}"
             if place:
