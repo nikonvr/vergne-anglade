@@ -220,6 +220,9 @@ ambiguë se résout par la formule attendue, non par un meilleur modèle.
 | `CERTUS_HTR_BACKENDS` | moteurs, par ordre de préférence | `claude_vision,simulated` |
 | `CERTUS_HTR_MAX_EDGE` | réduction avant envoi au moteur de vision | `1568` |
 | `CERTUS_OCR_OUTPUT_DIR` | images prétraitées | `.certus_cache/preprocessed` |
+| `CERTUS_SEGMENT_MIN_GAP` | hauteur minimale (px) d'une bande blanche séparatrice d'actes | `20` |
+| `CERTUS_SEGMENT_MIN_HEIGHT` | hauteur minimale (px) d'un acte découpé retenu | `50` |
+| `CERTUS_SEGMENT_MARGIN_RATIO` | ratio des marges latérales à ignorer pour la détection de la zone de texte | `0.15` |
 | `ANTHROPIC_API_KEY` | moteur `claude_vision` et extraction | — |
 
 ---
