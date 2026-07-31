@@ -165,6 +165,8 @@ def build_standalone_html() -> Path:
         }
         for nid, p in tree.nodes.items()
     ]
+    # Tri par ordre alphabétique : Patronyme puis Prénom (ex: ANGLADE, puis VERGNE...)
+    nodes_data.sort(key=lambda n: ((n["last_name"] or "").upper(), (n["first_name"] or "").upper()))
 
     # Liens de filiation, nécessaires côté client pour le zoom sur une branche (le sous-arbre
     # se calcule en JavaScript : cette page statique n'a pas de serveur à interroger).
