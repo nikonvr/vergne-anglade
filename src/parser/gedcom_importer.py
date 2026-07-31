@@ -13,7 +13,7 @@ class GedcomImporter:
         if not self.path.exists():
             raise FileNotFoundError(f"Fichier GEDCOM introuvable : {self.path}")
 
-        surnames = [s.upper() for s in target_surnames] if target_surnames else ["VERGNE", "VERNHE", "VERNHES", "ANGLADE"]
+        surnames = [s.upper() for s in target_surnames] if target_surnames else ["VERGNE", "VERNHE", "VERNHES", "ANGLADE", "BRUN", "JEHL", "IEHL", "LEMARCHAND"]
 
         # Lecture optimisée ligne par ligne du GEDCOM
         indis: Dict[str, dict] = {}
