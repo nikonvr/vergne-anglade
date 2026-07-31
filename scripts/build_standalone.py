@@ -382,14 +382,26 @@ def build_standalone_html() -> Path:
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-slate-500 font-semibold uppercase text-xs">
+                    <thead id="table-head" class="bg-slate-50 text-slate-500 font-semibold uppercase text-xs">
                         <tr>
-                            <th class="px-4 py-3 text-left">Prénom &amp; nom</th>
-                            <th class="px-4 py-3 text-left">Dates</th>
-                            <th class="px-4 py-3 text-left">Lieu</th>
-                            <th class="px-4 py-3 text-left">Profession</th>
-                            <th class="px-4 py-3 text-center">Mentions</th>
-                            <th class="px-4 py-3 text-right">Actes</th>
+                            <th data-sort-key="name" class="px-4 py-3 text-left cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1">Prénom &amp; nom <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
+                            <th data-sort-key="dates" class="px-4 py-3 text-left cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1">Dates <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
+                            <th data-sort-key="place" class="px-4 py-3 text-left cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1">Lieu <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
+                            <th data-sort-key="occupation" class="px-4 py-3 text-left cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1">Profession <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
+                            <th data-sort-key="mentions" class="px-4 py-3 text-center cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1 justify-center">Mentions <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
+                            <th data-sort-key="acts" class="px-4 py-3 text-right cursor-pointer hover:bg-slate-100 transition select-none">
+                                <span class="inline-flex items-center gap-1 justify-end">Actes <span class="sort-icon text-slate-400">↕</span></span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="table-body" class="divide-y divide-slate-100"></tbody>
@@ -982,14 +994,79 @@ def build_standalone_html() -> Path:
             currentSubtreeRoot = null;
         }}
 
+        let currentSortKey = 'name';
+        let currentSortAsc = true;
+
+        function updateSortHeaderIcons() {{
+            document.querySelectorAll('#table-head th[data-sort-key]').forEach(th => {{
+                const key = th.getAttribute('data-sort-key');
+                const icon = th.querySelector('.sort-icon');
+                if (!icon) return;
+                if (key === currentSortKey) {{
+                    th.classList.add('text-brand-700', 'bg-brand-50/60');
+                    th.classList.remove('text-slate-500');
+                    icon.textContent = currentSortAsc ? '▲' : '▼';
+                    icon.className = 'sort-icon text-brand-600 font-bold';
+                }} else {{
+                    th.classList.remove('text-brand-700', 'bg-brand-50/60');
+                    th.classList.add('text-slate-500');
+                    icon.textContent = '↕';
+                    icon.className = 'sort-icon text-slate-400';
+                }}
+            }});
+        }}
+
+        function getYear(dateStr) {{
+            if (!dateStr) return 9999;
+            const match = String(dateStr).match(/\b(1[0-9]{3}|20[0-9]{2})\b/);
+            return match ? parseInt(match[1], 10) : 9999;
+        }}
+
+        function sortNodes(data) {{
+            return data.slice().sort((a, b) => {{
+                let cmp = 0;
+                if (currentSortKey === 'name') {{
+                    const nameA = ((a.last_name || '') + ' ' + (a.first_name || '')).trim();
+                    const nameB = ((b.last_name || '') + ' ' + (b.first_name || '')).trim();
+                    cmp = nameA.localeCompare(nameB, 'fr', {{ sensitivity: 'base' }});
+                }} else if (currentSortKey === 'dates') {{
+                    const yearA = Math.min(getYear(a.birth_date), getYear(a.death_date));
+                    const yearB = Math.min(getYear(b.birth_date), getYear(b.death_date));
+                    cmp = yearA - yearB;
+                    if (cmp === 0) {{
+                        cmp = (a.birth_date || '').localeCompare(b.birth_date || '');
+                    }}
+                }} else if (currentSortKey === 'place') {{
+                    cmp = (a.place || '').localeCompare(b.place || '', 'fr', {{ sensitivity: 'base' }});
+                }} else if (currentSortKey === 'occupation') {{
+                    cmp = (a.occupation || '').localeCompare(b.occupation || '', 'fr', {{ sensitivity: 'base' }});
+                }} else if (currentSortKey === 'mentions') {{
+                    cmp = (a.mentions || 0) - (b.mentions || 0);
+                }} else if (currentSortKey === 'acts') {{
+                    const actsA = (NODE_ACTS[a.id] || []).length;
+                    const actsB = (NODE_ACTS[b.id] || []).length;
+                    cmp = actsA - actsB;
+                }}
+                if (cmp === 0 && currentSortKey !== 'name') {{
+                    const nameA = ((a.last_name || '') + ' ' + (a.first_name || '')).trim();
+                    const nameB = ((b.last_name || '') + ' ' + (b.first_name || '')).trim();
+                    cmp = nameA.localeCompare(nameB, 'fr', {{ sensitivity: 'base' }});
+                }}
+                return currentSortAsc ? cmp : -cmp;
+            }});
+        }}
+
         function filterTable() {{
             const val = document.getElementById('filter-input').value.toLowerCase();
-            renderTable(NODES.filter(n =>
+            const filtered = NODES.filter(n =>
                 (n.first_name && n.first_name.toLowerCase().includes(val)) ||
                 (n.last_name && n.last_name.toLowerCase().includes(val)) ||
                 (n.occupation && n.occupation.toLowerCase().includes(val)) ||
                 (n.place && n.place.toLowerCase().includes(val))
-            ));
+            );
+            const sorted = sortNodes(filtered);
+            updateSortHeaderIcons();
+            renderTable(sorted);
         }}
 
         function downloadGedcom() {{
@@ -1014,6 +1091,18 @@ def build_standalone_html() -> Path:
             }} else {{
                 openModalForNode(nodeId);
             }}
+        }});
+        document.getElementById('table-head').addEventListener('click', event => {{
+            const th = event.target.closest('th[data-sort-key]');
+            if (!th) return;
+            const key = th.getAttribute('data-sort-key');
+            if (key === currentSortKey) {{
+                currentSortAsc = !currentSortAsc;
+            }} else {{
+                currentSortKey = key;
+                currentSortAsc = (key === 'mentions' || key === 'acts') ? false : true;
+            }}
+            filterTable();
         }});
         document.getElementById('filter-input').addEventListener('keyup', filterTable);
         document.getElementById('btn-gedcom').addEventListener('click', downloadGedcom);
