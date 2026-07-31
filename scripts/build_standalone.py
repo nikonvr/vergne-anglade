@@ -93,8 +93,9 @@ def build_standalone_html():
     <title>CERTUS Genealogy - Branche VERGNE (Anglards-de-Salers)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
     <script>
-        mermaid.initialize({{ startOnLoad: true, theme: 'neutral' }});
+        mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
         tailwind.config = {{
             theme: {{
                 extend: {{
@@ -104,6 +105,36 @@ def build_standalone_html():
                 }}
             }}
         }};
+
+        let panZoomTree = null;
+        window.addEventListener('DOMContentLoaded', () => {{
+            mermaid.run({{
+                querySelector: '.mermaid',
+                postRenderCallback: function(id) {{
+                    const svg = document.querySelector('#' + id);
+                    if (svg) {{
+                        svg.style.maxWidth = 'none';
+                        svg.style.width = '100%';
+                        svg.style.height = '600px';
+                        panZoomTree = svgPanZoom(svg, {{
+                            zoomEnabled: true,
+                            controlIconsEnabled: false,
+                            mouseWheelZoomEnabled: true,
+                            preventMouseEventsDefault: true,
+                            fit: true,
+                            center: true,
+                            minZoom: 0.05,
+                            maxZoom: 10,
+                            zoomScaleSensitivity: 0.2
+                        }});
+                    }}
+                }}
+            }});
+        }});
+
+        function zoomInTree() {{ if (panZoomTree) panZoomTree.zoomIn(); }}
+        function zoomOutTree() {{ if (panZoomTree) panZoomTree.zoomOut(); }}
+        function resetTree() {{ if (panZoomTree) {{ panZoomTree.reset(); panZoomTree.fit(); panZoomTree.center(); }} }}
     </script>
     <style>
         .fade-in {{ animation: fadeIn 0.4s ease-in-out; }}
@@ -214,20 +245,32 @@ def build_standalone_html():
         </div>
 
         <!-- Section Visualisation Arbre Mermaid -->
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2 mb-4">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-slate-100 gap-3">
                 <div>
-                    <h3 class="text-lg font-bold text-slate-900">🌳 Arbre Généalogique Visuel & Liens de Filiation</h3>
-                    <p class="text-xs text-slate-500 mt-1">Tracé automatique des liens parent-enfant (Chaque cartouche représente un membre)</p>
+                    <h3 class="text-lg font-bold text-slate-900 flex flex-wrap items-center gap-2">
+                        <span>🌳 Arbre Généalogique Visuel & Liens de Filiation</span>
+                        <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">🖐️ Glisser-Déplacer & Zoom actif</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">Utilisez la molette pour zoomer et maintenez le clic gauche pour vous déplacer dans l'arbre (246 membres & 349 liens)</p>
                 </div>
-                <div class="text-xs bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600">
-                    <span>💡 Légende : </span>
-                    <span class="font-bold text-slate-800">Nom = Membre</span> | 
-                    <span class="font-bold text-brand-600">➡️ Flèche = Lien de filiation (Parent &rarr; Enfant)</span>
+                
+                <!-- BOUTONS INTERACTIFS DE ZOOM & PAN -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="zoomInTree()" class="bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold transition shadow-sm flex items-center gap-1">
+                        ➕ Zoom +
+                    </button>
+                    <button onclick="zoomOutTree()" class="bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold transition shadow-sm flex items-center gap-1">
+                        ➖ Zoom -
+                    </button>
+                    <button onclick="resetTree()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1">
+                        🎯 Centrer / Réinitialiser
+                    </button>
                 </div>
             </div>
-            <div class="w-full overflow-x-auto bg-slate-50 border border-slate-200 rounded-lg p-6 flex justify-center">
-                <div class="mermaid">
+            
+            <div class="w-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner relative" style="height: 620px;">
+                <div class="mermaid h-full w-full">
 {mermaid_code}
                 </div>
             </div>
