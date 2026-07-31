@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr" class="antialiased text-slate-800 bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CERTUS Genealogy - Tableau de Bord</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 900: '#0c4a6e' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+
+<body class="flex h-screen overflow-hidden bg-slate-100">
+    
+    <!-- Barre de navigation latérale -->
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10">
+        <div class="h-16 flex items-center px-6 border-b border-slate-100">
+            <svg class="w-8 h-8 text-brand-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+            <span class="text-xl font-bold tracking-tight text-slate-900">CERTUS</span>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-1 px-3">
+                <li><a href="#section-dashboard" class="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-brand-50 text-brand-600"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>Tableau de bord</a></li>
+                <li><a href="#section-acts" class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Actes extraits</a></li>
+                <li><a href="#section-tree" class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>Arbre (Graphe)</a></li>
+                <li><a href="/api/export/gedcom" download class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Export GEDCOM</a></li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-200 space-y-2">
+            <button id="btn-crawler" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2 px-4 rounded shadow-sm transition-colors text-sm">Lancer le Traitement</button>
+            <button id="btn-import-vergne" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2 px-4 rounded shadow-sm transition-colors text-sm">Importer branche VERGNE</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+        <!-- Header -->
+        <header class="h-16 flex items-center justify-between px-8 bg-white border-b border-slate-200 shadow-sm z-10">
+            <div class="flex-1 flex items-center">
+                <div class="relative w-full max-w-md">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <input id="search-input" type="text" class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-brand-500 focus:border-brand-500 sm:text-sm transition-colors" placeholder="Rechercher multi-sources (ex: VERGNE)...">
+                </div>
+            </div>
+            <div class="ml-4 flex items-center space-x-4">
+                <span id="api-status" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">API En ligne</span>
+            </div>
+        </header>
+
+        <!-- Barre de progression Temps Réel (WebSocket) -->
+        <div id="progress-container" class="hidden bg-brand-50 border-b border-brand-200 px-8 py-3">
+            <div class="flex items-center justify-between text-xs font-medium text-brand-900 mb-1">
+                <span id="progress-step">Initialisation...</span>
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="w-full bg-brand-200 rounded-full h-2 overflow-hidden">
+                <div id="progress-bar" class="bg-brand-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold text-slate-900">Vue d'ensemble - Famille VERGNE</h1>
+                <p class="mt-1 text-sm text-slate-500">Anglards-de-Salers (Cantal) - Branche VERGNE / VERNHE / VERNHES</p>
+            </div>
+
+            <!-- Bandeau d'Accueil Didactique -->
+            <div class="mb-8 bg-gradient-to-r from-brand-900 to-brand-700 text-white rounded-xl p-6 shadow-md">
+                <div class="flex items-start space-x-4">
+                    <div class="bg-white/10 p-3 rounded-lg text-3xl">📖</div>
+                    <div>
+                        <h2 class="text-xl font-bold">Bienvenue sur l'Espace Généalogique de la Famille VERGNE</h2>
+                        <p class="mt-1 text-sm text-brand-100 leading-relaxed">
+                            Cet outil simple et automatique déchiffre les archives d'état civil pour reconstituer l'histoire et les liens de parenté de la famille <strong>VERGNE</strong> (Cantal). Aucune connaissance technique n'est nécessaire.
+                        </p>
+                        <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                            <div class="bg-white/10 p-3 rounded-lg border border-white/10">
+                                <span class="font-bold text-white block mb-1">📜 1. Les Actes Historiques</span>
+                                Lisez la liste des actes anciens d'état civil et leurs transcriptions par simple clic sur une ligne.
+                            </div>
+                            <div class="bg-white/10 p-3 rounded-lg border border-white/10">
+                                <span class="font-bold text-white block mb-1">🌳 2. L'Arbre Visuel</span>
+                                Découvrez les cartes des personnes reliées par des flèches montrant la filiation (parents $\rightarrow$ enfants).
+                            </div>
+                            <div class="bg-white/10 p-3 rounded-lg border border-white/10">
+                                <span class="font-bold text-white block mb-1">🔍 3. La Recherche Facile</span>
+                                Tapez simplement un prénom ou nom dans la barre en haut pour retrouver un ancêtre.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grille des statistiques -->
+            <div id="section-dashboard" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+                <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-slate-100">
+                    <div class="px-4 py-5 sm:p-6">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Actes Analysés</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-slate-900" id="stat-acts">...</dd>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-slate-100">
+                    <div class="px-4 py-5 sm:p-6">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Individus Identifiés</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-slate-900" id="stat-persons">...</dd>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-slate-100">
+                    <div class="px-4 py-5 sm:p-6">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Familles Reconstruites</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-brand-600" id="stat-families">...</dd>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-slate-100">
+                    <div class="px-4 py-5 sm:p-6">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Confiance (IA LLM)</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-slate-900" id="stat-confidence">...</dd>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-acts" class="bg-white shadow-sm rounded-lg border border-slate-200">
+                <div class="px-4 py-5 border-b border-slate-200 sm:px-6 flex justify-between items-center">
+                    <h3 class="text-lg leading-6 font-medium text-slate-900">Actes récents extraits des archives</h3>
+                    <button class="text-sm text-brand-600 hover:text-brand-900 font-medium">Voir tout</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Lieu</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Personnes principales</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Score IA</th>
+                            </tr>
+                        </thead>
+                        <tbody id="acts-table-body" class="bg-white divide-y divide-slate-200">
+                            <!-- Rempli dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section Visualisation d'Arbre (Graphe Visuel Mermaid) -->
+            <div id="section-tree" class="mt-8 bg-white shadow-sm rounded-xl border border-slate-200 p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2 mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <span>🌳 Arbre Visuel & Liens de Filiation</span>
+                            <span id="tree-count" class="text-xs font-semibold px-3 py-1 bg-brand-100 text-brand-800 rounded-full">0 Individus</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">Tracé automatique des liens parent-enfant (Chaque cartouche représente un membre)</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600">
+                        <span>💡 Légende :</span>
+                        <span class="font-semibold text-slate-800"><b>Nom</b> = Membre</span>
+                        <span>|</span>
+                        <span class="font-semibold text-brand-600">➡️ Flèche = Lien de filiation (Parent $\rightarrow$ Enfant)</span>
+                    </div>
+                </div>
+                <div id="tree-canvas" class="min-h-64 w-full overflow-x-auto bg-slate-50 border border-slate-200 rounded-lg p-6 flex items-center justify-center">
+                    <p class="text-sm text-slate-400">Tracé automatique de l'arbre en cours...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Inspection d'Acte -->
+    <div id="act-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
+                <h3 id="modal-act-title" class="text-lg font-bold text-slate-900">Détails de l'Acte</h3>
+                <button id="modal-close" class="text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
+            </div>
+            <div class="space-y-3 text-sm text-slate-700">
+                <div><span class="font-semibold">Type & Date :</span> <span id="modal-act-type-date"></span></div>
+                <div><span class="font-semibold">Lieu :</span> <span id="modal-act-location"></span></div>
+                <div>
+                    <span class="font-semibold">Personnes identifiées :</span>
+                    <ul id="modal-act-persons" class="list-disc list-inside mt-1 space-y-0.5 text-slate-800 font-medium"></ul>
+                </div>
+                <div>
+                    <span class="font-semibold">Transcription (Source OCR/LLM) :</span>
+                    <div id="modal-act-text" class="mt-1 p-3 bg-slate-50 border rounded text-xs font-mono whitespace-pre-wrap text-slate-600"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const API_BASE = window.location.origin;
+
+            // WebSocket temps réel
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/progress`);
+            const progressContainer = document.getElementById('progress-container');
+            const progressStep = document.getElementById('progress-step');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBar = document.getElementById('progress-bar');
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.percentage !== undefined) {
+                    progressContainer.classList.remove('hidden');
+                    progressStep.textContent = data.step;
+                    progressPercent.textContent = `${data.percentage}%`;
+                    progressBar.style.width = `${data.percentage}%`;
+                    if (data.percentage >= 100) {
+                        setTimeout(() => progressContainer.classList.add('hidden'), 2500);
+                    }
+                }
+            };
+
+            const loadDashboardData = async () => {
+                try {
+                    // 1. Statistiques
+                    const statsResponse = await fetch(`${API_BASE}/api/stats`);
+                    if (statsResponse.ok) {
+                        const stats = await statsResponse.json();
+                        document.getElementById('stat-acts').textContent = stats.total_acts;
+                        document.getElementById('stat-persons').textContent = stats.total_persons;
+                        document.getElementById('stat-families').textContent = stats.families_reconstructed;
+                        document.getElementById('stat-confidence').textContent = (stats.confidence_average * 100).toFixed(1) + '%';
+                    }
+
+                    // 2. Actes
+                    const actsResponse = await fetch(`${API_BASE}/api/acts/recent`);
+                    if (actsResponse.ok) {
+                        const acts = await actsResponse.json();
+                        const tbody = document.getElementById('acts-table-body');
+                        tbody.innerHTML = ''; 
+                        
+                        acts.forEach(act => {
+                            const tr = document.createElement('tr');
+                            tr.className = 'hover:bg-slate-50 transition-colors cursor-pointer';
+                            
+                            let typeColor = 'bg-slate-100 text-slate-800';
+                            if(act.type === 'Naissance') typeColor = 'bg-blue-100 text-blue-800';
+                            if(act.type === 'Mariage') typeColor = 'bg-purple-100 text-purple-800';
+                            if(act.type === 'Décès') typeColor = 'bg-red-100 text-red-800';
+
+                            const score = Math.round(act.confidence * 100);
+                            const scoreColor = score > 90 ? 'text-green-600' : 'text-orange-500';
+
+                            tr.innerHTML = `
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-medium">${act.date}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${typeColor}">
+                                        ${act.type}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${act.location}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${act.principals.join(' & ')}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold ${scoreColor}">${score}%</td>
+                            `;
+
+                            tr.addEventListener('click', async () => {
+                                try {
+                                    const actDetailRes = await fetch(`${API_BASE}/api/acts/${act.id}`);
+                                    if (actDetailRes.ok) {
+                                        const detail = await actDetailRes.json();
+                                        document.getElementById('modal-act-title').textContent = `Acte #${detail.id} - ${detail.act_type}`;
+                                        document.getElementById('modal-act-type-date').textContent = `${detail.act_type} (${detail.date || 'S.D.'})`;
+                                        document.getElementById('modal-act-location').textContent = detail.location || 'Non précisé';
+                                        document.getElementById('modal-act-text').textContent = detail.source_text || 'Aucune transcription disponible.';
+                                        
+                                        const pList = document.getElementById('modal-act-persons');
+                                        pList.innerHTML = '';
+                                        detail.persons.forEach(p => {
+                                            const li = document.createElement('li');
+                                            li.textContent = `${p.first_name || ''} ${p.last_name || ''} (${p.role}${p.occupation ? ' - ' + p.occupation : ''})`;
+                                            pList.appendChild(li);
+                                        });
+                                        document.getElementById('act-modal').classList.remove('hidden');
+                                    }
+                                } catch(e) { console.error("Erreur chargement acte", e); }
+                            });
+
+                            tbody.appendChild(tr);
+                        });
+                    }
+
+                    // 3. Arbre généalogique (graphe visuel Mermaid)
+                    const treeResponse = await fetch(`${API_BASE}/api/tree`);
+                    const mermaidResponse = await fetch(`${API_BASE}/api/export/mermaid`);
+                    if (treeResponse.ok) {
+                        const tree = await treeResponse.json();
+                        const treeCanvas = document.getElementById('tree-canvas');
+                        const treeCount = document.getElementById('tree-count');
+                        const nodeKeys = Object.keys(tree.nodes || {});
+                        treeCount.textContent = `${nodeKeys.length} Individus consolidés`;
+                        treeCanvas.innerHTML = '';
+                        if (nodeKeys.length === 0) {
+                            treeCanvas.innerHTML = '<p class="text-sm text-slate-400">Aucun individu consolidé pour le moment.</p>';
+                        } else if (mermaidResponse.ok) {
+                            const mdata = await mermaidResponse.json();
+                            treeCanvas.className = "w-full overflow-x-auto bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex justify-center";
+                            const mdiv = document.createElement('div');
+                            mdiv.className = 'mermaid';
+                            mdiv.textContent = mdata.mermaid;
+                            treeCanvas.appendChild(mdiv);
+                            if (window.mermaid) {
+                                window.mermaid.run({ nodes: [mdiv] });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Erreur d'API", error);
+                    document.getElementById('api-status').className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800";
+                    document.getElementById('api-status').textContent = "API Hors ligne";
+                }
+            };
+
+            await loadDashboardData();
+
+            const modalClose = document.getElementById('modal-close');
+            const actModal = document.getElementById('act-modal');
+            modalClose.addEventListener('click', () => actModal.classList.add('hidden'));
+            actModal.addEventListener('click', (e) => {
+                if (e.target === actModal) actModal.classList.add('hidden');
+            });
+
+            const btnCrawler = document.getElementById('btn-crawler');
+            btnCrawler.addEventListener('click', async () => {
+                btnCrawler.disabled = true;
+                btnCrawler.textContent = "Traitement en cours...";
+                try {
+                    const res = await fetch(`${API_BASE}/api/pipeline/process`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image_path: "2014-12-14 12.03.15.jpg" })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        alert(`Traitement réussi ! Acte #${data.act_id} créé.`);
+                        await loadDashboardData();
+                    } else {
+                        const err = await res.json();
+                        alert(`Erreur de traitement: ${err.detail || 'Inconnue'}`);
+                    }
+                } catch (e) {
+                    console.error("Erreur de traitement", e);
+                    alert("Erreur de connexion à l'API.");
+                } finally {
+                    btnCrawler.disabled = false;
+                    btnCrawler.textContent = "Lancer le Traitement";
+                }
+            });
+
+            const btnImport = document.getElementById('btn-import-vergne');
+            if (btnImport) {
+                btnImport.addEventListener('click', async () => {
+                    btnImport.disabled = true;
+                    btnImport.textContent = "Importation...";
+                    try {
+                        const res = await fetch(`${API_BASE}/api/import/gedcom`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ gedcom_path: "D:/drivefl/gene/2022/2026-02_export.ged" })
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            alert(`Importation réussie ! ${data.imported_count} actes/individus de la branche VERGNE importés.`);
+                            await loadDashboardData();
+                        } else {
+                            const err = await res.json();
+                            alert(`Erreur d'importation: ${err.detail || 'Fichier introuvable'}`);
+                        }
+                    } catch (e) {
+                        console.error("Erreur d'importation", e);
+                        alert("Erreur lors de l'importation.");
+                    } finally {
+                        btnImport.disabled = false;
+                        btnImport.textContent = "Importer branche VERGNE";
+                    }
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('keydown', async (e) => {
+                    if (e.key === 'Enter') {
+                        const q = searchInput.value.trim();
+                        if (!q) return;
+                        try {
+                            const res = await fetch(`${API_BASE}/api/search`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ last_name: q })
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                alert(`Recherche multi-sources terminée : ${data.total_acts} actes agrégés pour "${q}".`);
+                            }
+                        } catch(err) {
+                            console.error("Erreur de recherche multi-sources", err);
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

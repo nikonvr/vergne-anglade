@@ -45,20 +45,49 @@ class GedcomExporter:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def export_mermaid(self, tree: FamilyTree) -> str:
-        """Génère la représentation graphique au format diagramme Mermaid v11 valide."""
-        lines = ["graph TD"]
+    def export_mermaid(self, tree: FamilyTree, direction: str = "BT") -> str:
+        """Génère la représentation graphique au format diagramme Mermaid v11 enrichi et coloré."""
+        lines = [
+            f"graph {direction}",
+            "    %% Définition des couleurs pour identifier les régions d'origine",
+            "    classDef cantal fill:#e8f4f8,stroke:#2b78e4,stroke-width:2px",
+            "    classDef provence fill:#fcf4cd,stroke:#f6b26b,stroke-width:2px",
+            "    classDef alpes fill:#e6eed5,stroke:#daa84f,stroke-width:2px",
+            "    classDef defaut fill:#f1f5f9,stroke:#64748b,stroke-width:2px"
+        ]
+        
         id_map = {}
         for idx, (node_id, person) in enumerate(tree.nodes.items(), 1):
             safe_id = f"P{idx}"
             id_map[node_id] = safe_id
+            
             fn = (person.first_name or "Inconnu").replace('"', '').replace("'", "")
             ln = (person.last_name or "Inconnu").replace('"', '').replace("'", "")
-            label = f"{fn} {ln}"
-            lines.append(f'    {safe_id}["{label}"]')
+            
+            b_date = getattr(person, "birth_date", "") or ""
+            d_date = getattr(person, "death_date", "") or ""
+            date_str = f"({b_date} - {d_date})" if (b_date or d_date) else ""
+            
+            place = getattr(person, "birth_place", "") or getattr(person, "death_place", "") or "Anglards-de-Salers"
+            
+            ln_upper = ln.upper()
+            if any(k in ln_upper for k in ["VERGNE", "VERNHE", "ANGLADE", "BRUN"]):
+                style_class = "cantal"
+            elif any(k in ln_upper for k in ["JEHL", "IEHL"]):
+                style_class = "provence"
+            else:
+                style_class = "defaut"
+
+            subtext = f"<br/>{date_str}" if date_str else ""
+            place_text = f"<br/><i>{place}</i>" if place else ""
+            label = f"<b>{fn} {ln}</b>{subtext}{place_text}"
+            
+            lines.append(f'    {safe_id}["{label}"]:::{style_class}')
+
         for rel in tree.edges:
             src = id_map.get(rel.source_id)
             tgt = id_map.get(rel.target_id)
             if src and tgt:
                 lines.append(f'    {src} --> {tgt}')
+
         return "\n".join(lines) + "\n"

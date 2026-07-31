@@ -100,6 +100,23 @@ class ProcessResponse(BaseModel):
     status: str
     act_id: int
 
+def _get_orchestrator() -> CertusOrchestrator:
+    return CertusOrchestrator(db_manager)
+
+def _get_global_tree() -> FamilyTree:
+    return _get_orchestrator().generate_global_tree()
+
+def _format_act_response(act: Act, idx: int) -> dict:
+    principals = [f"{p.last_name or ''} {p.first_name or ''}".strip() for p in act.persons if p.last_name]
+    return {
+        "id": idx,
+        "type": act.act_type or "Inconnu",
+        "date": act.date or "S.D.",
+        "location": act.location or "Non précisé",
+        "principals": principals or ["Inconnu"],
+        "confidence": act.confidence_score
+    }
+
 @app.websocket("/ws/progress")
 async def websocket_progress_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
@@ -130,8 +147,7 @@ async def get_stats():
         acts = repo.get_all_acts()
         total_acts = len(acts)
         total_persons = sum(len(a.persons) for a in acts)
-        orchestrator = CertusOrchestrator(db_manager)
-        tree = orchestrator.generate_global_tree()
+        tree = _get_global_tree()
         families_count = len(tree.nodes)
         avg_confidence = sum(a.confidence_score for a in acts) / total_acts if total_acts > 0 else 0.90
         return {
@@ -144,8 +160,7 @@ async def get_stats():
 @app.get("/api/tree", response_model=FamilyTree)
 async def get_global_tree():
     """Génère et retourne l'arbre généalogique reconstruit."""
-    orchestrator = CertusOrchestrator(db_manager)
-    return orchestrator.generate_global_tree()
+    return _get_global_tree()
 
 class RelationshipAnalysisResponse(BaseModel):
     person1: str
@@ -157,7 +172,7 @@ class RelationshipAnalysisResponse(BaseModel):
 @app.get("/api/relationship", response_model=RelationshipAnalysisResponse)
 async def analyze_relationship(p1: str, p2: str):
     """Calcule l'ancêtre commun et le chemin de parenté entre deux individus."""
-    orchestrator = CertusOrchestrator(db_manager)
+    orchestrator = _get_orchestrator()
     tree = orchestrator.generate_global_tree()
     ancestor = orchestrator.tree_builder.find_common_ancestor(p1, p2)
     path = orchestrator.tree_builder.get_relationship_path(p1, p2)
@@ -172,8 +187,7 @@ async def analyze_relationship(p1: str, p2: str):
 @app.get("/api/export/json")
 async def export_json_graph():
     """Exporte le graphe généalogique au format JSON (nœuds et liens) pour D3.js."""
-    orchestrator = CertusOrchestrator(db_manager)
-    tree = orchestrator.generate_global_tree()
+    tree = _get_global_tree()
     nodes = [
         {
             "id": nid,
@@ -196,18 +210,14 @@ async def export_json_graph():
 @app.get("/api/export/mermaid")
 async def export_mermaid_endpoint():
     """Génère la syntaxe du diagramme graphique Mermaid pour le rendu dans l'UI."""
-    orchestrator = CertusOrchestrator(db_manager)
-    tree = orchestrator.generate_global_tree()
-    exporter = GedcomExporter()
-    return {"mermaid": exporter.export_mermaid(tree)}
+    tree = _get_global_tree()
+    return {"mermaid": GedcomExporter().export_mermaid(tree)}
 
 @app.get("/api/export/gedcom")
 async def export_gedcom():
     """Génère et télécharge l'arbre généalogique au format GEDCOM (.ged)."""
-    orchestrator = CertusOrchestrator(db_manager)
-    tree = orchestrator.generate_global_tree()
-    exporter = GedcomExporter()
-    gedcom_data = exporter.export_string(tree)
+    tree = _get_global_tree()
+    gedcom_data = GedcomExporter().export_string(tree)
     return Response(
         content=gedcom_data,
         media_type="text/plain",
@@ -218,22 +228,7 @@ async def export_gedcom():
 async def get_recent_acts():
     """Retourne la liste des actes de la base de données."""
     with db_manager.get_session() as session:
-        repo = ActRepository(session)
-        acts = repo.get_all_acts()
-        result = []
-        for idx, act in enumerate(acts, 1):
-            principals = [f"{p.last_name or ''} {p.first_name or ''}".strip() for p in act.persons if p.last_name]
-            if not principals:
-                principals = ["Inconnu"]
-            result.append({
-                "id": idx,
-                "type": act.act_type or "Inconnu",
-                "date": act.date or "S.D.",
-                "location": act.location or "Non précisé",
-                "principals": principals,
-                "confidence": act.confidence_score
-            })
-        return result
+        return [_format_act_response(act, idx) for idx, act in enumerate(ActRepository(session).get_all_acts(), 1)]
 
 class PersonDetail(BaseModel):
     first_name: Optional[str] = None
@@ -284,8 +279,6 @@ async def get_act_detail(act_id: int):
 async def process_document_endpoint(payload: ProcessRequest):
     """Déclenche le traitement d'un document via l'orchestrateur."""
     try:
-        orchestrator = CertusOrchestrator(db_manager)
-
         def sync_progress(step: str, percentage: int):
             try:
                 loop = asyncio.get_running_loop()
@@ -295,7 +288,7 @@ async def process_document_endpoint(payload: ProcessRequest):
             except RuntimeError:
                 pass
 
-        act_id = orchestrator.process_document(payload.image_path, progress_callback=sync_progress)
+        act_id = _get_orchestrator().process_document(payload.image_path, progress_callback=sync_progress)
         return {"status": "success", "act_id": act_id}
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -335,21 +328,8 @@ from src.core.meta_orchestrator import MetaOrchestrator
 @app.post("/api/search", response_model=MultiSourceSearchResponse)
 async def multi_source_search_endpoint(query: SearchQuery):
     """Effectue une recherche universelle parallèle sur toutes les sources enregistrées."""
-    meta = MetaOrchestrator()
-    acts = await meta.search_everywhere(query)
-    results = []
-    for idx, act in enumerate(acts, 1):
-        principals = [f"{p.last_name or ''} {p.first_name or ''}".strip() for p in act.persons if p.last_name]
-        if not principals:
-            principals = ["Inconnu"]
-        results.append({
-            "id": idx,
-            "type": act.act_type or "Inconnu",
-            "date": act.date or "S.D.",
-            "location": act.location or "Non précisé",
-            "principals": principals,
-            "confidence": act.confidence_score
-        })
+    acts = await MetaOrchestrator().search_everywhere(query)
+    results = [_format_act_response(act, idx) for idx, act in enumerate(acts, 1)]
     return {"total_acts": len(results), "acts": results}
 
 

@@ -27,27 +27,27 @@ except ImportError:
 class TreeBuilder:
     def __init__(self):
         self.graph = nx.DiGraph()
-        
+
+    @staticmethod
+    def _normalize(name: Optional[str], default: str = "INCONNU") -> str:
+        return name.strip().upper() if name else default
+
     def _generate_person_id(self, person) -> str:
-        fn = person.first_name.upper() if person.first_name else "INCONNU"
-        ln = person.last_name.upper() if person.last_name else "INCONNU"
-        return f"{ln}_{fn}"
+        return f"{self._normalize(person.last_name)}_{self._normalize(person.first_name)}"
 
     def _get_block_key(self, fn: str, ln: str) -> str:
-        fn_part = fn.strip().upper()[:3] if fn else "INC"
-        ln_part = ln.strip().upper()[:3] if ln else "INC"
-        return f"{fn_part}_{ln_part}"
+        return f"{self._normalize(fn, 'INC')[:3]}_{self._normalize(ln, 'INC')[:3]}"
 
     def _find_matching_person_id(self, tree: FamilyTree, index: Dict[str, List[str]], fn: str, ln: str) -> Optional[str]:
-        target_fn = fn.upper()
-        target_ln = ln.upper()
+        target_fn = self._normalize(fn)
+        target_ln = self._normalize(ln)
         block_key = self._get_block_key(fn, ln)
-        candidate_ids = index.get(block_key, [])
-
-        for pid in candidate_ids:
+        
+        for pid in index.get(block_key, []):
             existing = tree.nodes[pid]
-            ex_fn = existing.first_name.upper()
-            ex_ln = existing.last_name.upper()
+            ex_fn = self._normalize(existing.first_name)
+            ex_ln = self._normalize(existing.last_name)
+            
             if ex_fn == target_fn:
                 dist = _levenshtein(ex_ln, target_ln)
                 max_allowed = max(2, int(len(target_ln) * 0.45))
@@ -55,61 +55,55 @@ class TreeBuilder:
                     return pid
         return None
 
+    def _add_or_update_person(self, tree: FamilyTree, block_index: Dict[str, List[str]], pid: str, fn: str, ln: str, occupation: Optional[str]):
+        if pid in tree.nodes:
+            tree.nodes[pid].mentions += 1
+            if occupation and not getattr(tree.nodes[pid], "occupation", None):
+                tree.nodes[pid].occupation = occupation
+        else:
+            tree.nodes[pid] = ConsolidatedPerson(
+                id=pid, first_name=fn, last_name=ln, mentions=1, occupation=occupation
+            )
+            block_index.setdefault(self._get_block_key(fn, ln), []).append(pid)
+
+        if not self.graph.has_node(pid):
+            self.graph.add_node(pid, first_name=fn, last_name=ln)
+
+    def _link_parent_child(self, tree: FamilyTree, parents: List[str], child_pid: str, rel_type: str):
+        for parent_pid in parents:
+            if parent_pid != child_pid:
+                rel = Relationship(source_id=parent_pid, target_id=child_pid, rel_type=rel_type)
+                if rel not in tree.edges:
+                    tree.edges.append(rel)
+                self.graph.add_edge(parent_pid, child_pid, rel_type=rel_type)
+
+    def _add_relationships(self, tree: FamilyTree, role_map: Dict[str, List[str]]):
+        children = role_map.get("enfant", [])
+        fathers = role_map.get("père", []) + role_map.get("father", [])
+        mothers = role_map.get("mère", []) + role_map.get("mother", [])
+
+        for child_pid in children:
+            self._link_parent_child(tree, fathers, child_pid, "pere")
+            self._link_parent_child(tree, mothers, child_pid, "mere")
+
     def process_acts(self, acts: List[Act]) -> FamilyTree:
         tree = FamilyTree()
         block_index: Dict[str, List[str]] = {}
 
         for act in acts:
             role_map: Dict[str, List[str]] = {}
+            
             for person in act.persons:
                 fn = person.first_name or "Inconnu"
                 ln = person.last_name or "Inconnu"
+                
                 matched_id = self._find_matching_person_id(tree, block_index, fn, ln)
                 pid = matched_id if matched_id else self._generate_person_id(person)
 
-                role = (person.role or "").lower()
-                if role not in role_map:
-                    role_map[role] = []
-                role_map[role].append(pid)
+                role_map.setdefault((person.role or "").lower(), []).append(pid)
+                self._add_or_update_person(tree, block_index, pid, fn, ln, person.occupation)
 
-                if pid in tree.nodes:
-                    tree.nodes[pid].mentions += 1
-                    if person.occupation and not getattr(tree.nodes[pid], "occupation", None):
-                        tree.nodes[pid].occupation = person.occupation
-                else:
-                    tree.nodes[pid] = ConsolidatedPerson(
-                        id=pid,
-                        first_name=fn,
-                        last_name=ln,
-                        mentions=1,
-                        occupation=person.occupation
-                    )
-                    block_key = self._get_block_key(fn, ln)
-                    if block_key not in block_index:
-                        block_index[block_key] = []
-                    block_index[block_key].append(pid)
-
-                if not self.graph.has_node(pid):
-                    self.graph.add_node(pid, first_name=fn, last_name=ln)
-
-            # Création des arêtes de filiation (parent -> enfant)
-            children = role_map.get("enfant", [])
-            fathers = role_map.get("père", []) + role_map.get("father", [])
-            mothers = role_map.get("mère", []) + role_map.get("mother", [])
-
-            for child_pid in children:
-                for dad_pid in fathers:
-                    if dad_pid != child_pid:
-                        rel = Relationship(source_id=dad_pid, target_id=child_pid, rel_type="pere")
-                        if rel not in tree.edges:
-                            tree.edges.append(rel)
-                        self.graph.add_edge(dad_pid, child_pid, rel_type="pere")
-                for mom_pid in mothers:
-                    if mom_pid != child_pid:
-                        rel = Relationship(source_id=mom_pid, target_id=child_pid, rel_type="mere")
-                        if rel not in tree.edges:
-                            tree.edges.append(rel)
-                        self.graph.add_edge(mom_pid, child_pid, rel_type="mere")
+            self._add_relationships(tree, role_map)
 
         return tree
 

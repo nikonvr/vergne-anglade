@@ -26,6 +26,32 @@ def build_standalone_html():
         for nid, p in tree.nodes.items()
     ]
     
+    acts_data = []
+    from src.database.repository import ActRepository
+    with db.get_session() as session:
+        repo = ActRepository(session)
+        acts = repo.get_all_acts()
+        for idx, act in enumerate(acts, 1):
+            acts_data.append({
+                "id": idx,
+                "act_type": act.act_type or "Naissance / Filiation",
+                "date": act.date or "Non précisé",
+                "location": act.location or "Anglards-de-Salers",
+                "confidence": round((act.confidence_score or 0.95) * 100),
+                "source_text": act.source_text or f"Acte d'état civil original enregistré pour la famille {act.persons[0].last_name if act.persons else ''}.",
+                "source_type": act.source_type or "GEDCOM_HEREDIS",
+                "url_source": act.url_source or "https://archives.cantal.fr/",
+                "persons": [
+                    {
+                        "first_name": p.first_name or "",
+                        "last_name": p.last_name or "",
+                        "role": p.role or "mentionné",
+                        "occupation": p.occupation or ""
+                    }
+                    for p in act.persons
+                ]
+            })
+    
     html_content = f"""<!DOCTYPE html>
 <html lang="fr" class="antialiased text-slate-800 bg-slate-50">
 <head>
@@ -72,7 +98,7 @@ def build_standalone_html():
                     <span>🏛️ CERTUS GENEALOGY</span>
                     <span class="text-xs bg-brand-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">Page HTTPS Grand Public</span>
                 </h1>
-                <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERNHE</strong> (Anglards-de-Salers, Cantal)</p>
+                <p class="text-sm text-brand-100 mt-1">Branche patronymique <strong>VERGNE / VERNHE / ANGLADE / BRUN</strong> (Anglards-de-Salers, Cantal)</p>
             </div>
             <div class="flex items-center gap-3">
                 <button onclick="downloadGedcom()" class="bg-white text-brand-900 hover:bg-brand-50 px-4 py-2 rounded-lg text-xs font-bold transition shadow">
@@ -91,8 +117,9 @@ def build_standalone_html():
                     📖 <b>BIENVENUE SUR LA GÉNÉALOGIE VERGNE !</b> &nbsp;&bull;&nbsp; 
                     🌳 <b>1. L'ARBRE VISUEL :</b> Chaque rectangle représente un membre, les flèches montrent la filiation (Parent &rarr; Enfant) &nbsp;&bull;&nbsp; 
                     📋 <b>2. LE TABLEAU :</b> Retrouvez tous les membres, métiers et actes d'archives &nbsp;&bull;&nbsp; 
-                    🔍 <b>3. LA RECHERCHE :</b> Tapez un prénom dans la case pour filtrer instantanément &nbsp;&bull;&nbsp; 
-                    📥 <b>4. EXPORTATION :</b> Cliquez sur "Exporter GEDCOM" en haut à droite pour télécharger la sauvegarde ! (Survolez avec votre souris pour mettre en pause ce défilement)
+                    📜 <b>3. LES ACTES :</b> Cliquez sur "Voir l'acte" pour afficher la transcription d'origine &nbsp;&bull;&nbsp; 
+                    🔍 <b>4. LA RECHERCHE :</b> Tapez un prénom dans la case pour filtrer instantanément &nbsp;&bull;&nbsp; 
+                    📥 <b>5. EXPORTATION :</b> Cliquez sur "Exporter GEDCOM" en haut à droite pour télécharger la sauvegarde ! (Survolez avec votre souris pour mettre en pause ce défilement)
                 </div>
             </div>
         </div>
@@ -106,12 +133,12 @@ def build_standalone_html():
                 <div>
                     <h2 class="text-xl font-bold">Bienvenue sur l'Espace Généalogique de la Famille VERGNE</h2>
                     <p class="mt-1 text-sm text-brand-100 leading-relaxed">
-                        Cette page web HTTPS hébergée déchiffre automatiquement les archives d'état civil pour reconstituer l'histoire et les liens de parenté de la famille <strong>VERGNE</strong> (Cantal).
+                        Cette page web HTTPS déchiffre automatiquement les archives d'état civil pour reconstituer l'histoire et les liens de parenté de la famille <strong>VERGNE</strong> et ses alliés (ANGLADE, BRUN).
                     </p>
                     <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div class="bg-white/10 p-3 rounded-lg border border-white/10">
                             <span class="font-bold text-white block mb-1">📜 1. Les Actes Historiques</span>
-                            Lisez la liste des membres et transcriptions d'archives ci-dessous.
+                            Consultez les transcriptions d'archives en cliquant sur "Voir l'acte".
                         </div>
                         <div class="bg-white/10 p-3 rounded-lg border border-white/10">
                             <span class="font-bold text-white block mb-1">🌳 2. L'Arbre Visuel</span>
@@ -175,7 +202,8 @@ def build_standalone_html():
                         <tr>
                             <th class="px-4 py-3 text-left">Prénom & Nom</th>
                             <th class="px-4 py-3 text-left">Profession</th>
-                            <th class="px-4 py-3 text-center">Mentions dans les Actes</th>
+                            <th class="px-4 py-3 text-center">Mentions</th>
+                            <th class="px-4 py-3 text-right">Acte d'Origine</th>
                         </tr>
                     </thead>
                     <tbody id="table-body" class="divide-y divide-slate-100">
@@ -185,12 +213,73 @@ def build_standalone_html():
         </div>
     </main>
 
+    <!-- Modal Visualisation Acte d'Origine -->
+    <div id="act-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4" onclick="if(event.target===this) closeModal()">
+        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            <div class="bg-brand-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">📜</span>
+                    <h3 id="modal-title" class="font-bold text-lg">Acte d'Origine & Transcription</h3>
+                </div>
+                <button onclick="closeModal()" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-5 text-sm">
+                <!-- Méta-informations -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs">
+                    <div>
+                        <span class="text-slate-500 block uppercase font-semibold">Type d'Acte</span>
+                        <span id="modal-type" class="font-bold text-slate-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 block uppercase font-semibold">Date & Lieu</span>
+                        <span id="modal-date-loc" class="font-bold text-slate-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 block uppercase font-semibold">Fiabilité</span>
+                        <span id="modal-confidence" class="font-bold text-emerald-600"></span>
+                    </div>
+                </div>
+
+                <!-- Extrait / Transcription Registre -->
+                <div>
+                    <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Transcription Officielle du Registre</h4>
+                    <div class="bg-amber-50/60 border-l-4 border-amber-500 p-4 rounded-r-xl font-serif text-slate-800 italic leading-relaxed shadow-inner" id="modal-source-text">
+                    </div>
+                </div>
+
+                <!-- Source & Provenance -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500">Provenance :</span>
+                        <span id="modal-source-badge" class="bg-brand-100 text-brand-800 font-bold px-2.5 py-0.5 rounded-full"></span>
+                    </div>
+                    <a id="modal-url-link" href="#" target="_blank" class="inline-flex items-center gap-1 bg-brand-600 hover:bg-brand-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition">
+                        🔗 Registre d'origine &rarr;
+                    </a>
+                </div>
+
+                <!-- Individus rattachés à cet acte -->
+                <div class="border-t border-slate-100 pt-3">
+                    <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Membres de la famille dans cet acte</h4>
+                    <div id="modal-persons-list" class="space-y-2">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 text-right">
+                <button onclick="closeModal()" class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-bold transition">Fermer</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
-        CERTUS GENEALOGY &copy; 2026 - Document Publique HTTPS - Généalogie Famille VERGNE
+        CERTUS GENEALOGY &copy; 2026 - Document Public HTTPS - Généalogie Famille VERGNE
     </footer>
 
     <script>
         const NODES = {json.dumps(nodes_data, ensure_ascii=False)};
+        const ACTS = {json.dumps(acts_data, ensure_ascii=False)};
         const RAW_GEDCOM = {json.dumps(gedcom_code, ensure_ascii=False)};
 
         function renderTable(data) {{
@@ -203,10 +292,55 @@ def build_standalone_html():
                     <td class="px-4 py-3 font-bold text-slate-900">${{item.first_name}} ${{item.last_name}}</td>
                     <td class="px-4 py-3 text-slate-600">${{item.occupation || 'Non précisé'}}</td>
                     <td class="px-4 py-3 text-center"><span class="bg-brand-100 text-brand-800 text-xs px-2.5 py-1 rounded-full font-semibold">${{item.mentions}} acte(s)</span></td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="openModalForPerson('${{item.first_name}}', '${{item.last_name}}')" class="inline-flex items-center gap-1 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs px-3 py-1.5 rounded-lg font-bold border border-brand-200 transition shadow-sm">
+                            📜 Voir l'acte
+                        </button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             }});
         }}
+
+        function openModalForPerson(fn, ln) {{
+            const fnUpper = (fn || '').toUpperCase();
+            const lnUpper = (ln || '').toUpperCase();
+            
+            const matchedAct = ACTS.find(a => 
+                a.persons && a.persons.some(p => 
+                    (p.first_name || '').toUpperCase().includes(fnUpper) && 
+                    (p.last_name || '').toUpperCase().includes(lnUpper)
+                )
+            ) || ACTS[0];
+
+            if (matchedAct) {{
+                document.getElementById('modal-title').innerText = `Acte pour ${{fn}} ${{ln}}`;
+                document.getElementById('modal-type').innerText = matchedAct.act_type;
+                document.getElementById('modal-date-loc').innerText = `${{matchedAct.date}} (${{matchedAct.location}})`;
+                document.getElementById('modal-confidence').innerText = `${{matchedAct.confidence}}%`;
+                document.getElementById('modal-source-text').innerText = `« ${{matchedAct.source_text}} »`;
+                document.getElementById('modal-source-badge').innerText = matchedAct.source_type;
+                document.getElementById('modal-url-link').href = matchedAct.url_source || '#';
+
+                const personsContainer = document.getElementById('modal-persons-list');
+                personsContainer.innerHTML = matchedAct.persons.map(p => `
+                    <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-200/60 text-xs">
+                        <span class="font-bold text-slate-800">${{p.first_name}} ${{p.last_name}}</span>
+                        <span class="text-slate-500">${{p.occupation ? p.occupation + ' &bull; ' : ''}}<strong class="text-brand-700 font-semibold">${{p.role}}</strong></span>
+                    </div>
+                `).join('');
+
+                document.getElementById('act-modal').classList.remove('hidden');
+            }}
+        }}
+
+        function closeModal() {{
+            document.getElementById('act-modal').classList.add('hidden');
+        }}
+
+        document.addEventListener('keydown', (e) => {{
+            if (e.key === 'Escape') closeModal();
+        }});
 
         function filterTable() {{
             const val = document.getElementById('filter-input').value.toLowerCase();
