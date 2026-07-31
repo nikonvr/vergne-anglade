@@ -414,8 +414,8 @@ def build_standalone_html() -> Path:
 
     <!-- Sous-arbre : zoom sur une branche (ascendants + descendants d'une personne) -->
     <div id="subtree-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh]">
-            <div class="bg-brand-900 text-white px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col h-[92vh]">
+            <div class="bg-brand-900 text-white px-6 py-4 flex items-center justify-between gap-3 flex-wrap shrink-0">
                 <div class="flex items-center gap-2">
                     <span class="text-xl">🌳</span>
                     <h3 id="subtree-title" class="font-bold text-lg"></h3>
@@ -431,9 +431,12 @@ def build_standalone_html() -> Path:
                 </div>
                 <button id="subtree-close-top" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
             </div>
-            <p id="subtree-count" class="px-6 pt-3 text-xs text-slate-500"></p>
-            <div class="p-4 flex-1 overflow-hidden">
-                <div id="subtree-container" class="w-full h-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden" style="min-height: 420px;">
+            <p id="subtree-count" class="px-6 pt-3 text-xs text-slate-500 shrink-0"></p>
+            <!-- min-h-0 est indispensable : sans lui, un enfant flex-1 refuse de descendre
+                 sous la hauteur intrinsèque de son contenu (ici le SVG), ce qui annulerait
+                 la hauteur fixe du conteneur ci-dessus et ferait déborder la modale. -->
+            <div class="p-4 flex-1 min-h-0 overflow-hidden">
+                <div id="subtree-container" class="w-full h-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
                     <div id="subtree-mermaid" class="w-full h-full"></div>
                 </div>
             </div>

@@ -49,3 +49,6 @@ attic/
 # vergne_genealogy_standalone.html a été supprimé (270 Ko identiques à index.html).
 # Si un jour la page publique embarque une image, la ré-autoriser ici, p. ex. :
 #   !docs/assets/logo.png
+
+# --- Configuration locale des outils d'édition (jamais partagée) ---
+.claude/
