@@ -211,7 +211,7 @@ class GedcomExporter:
             return ""
         return _MERMAID_UNSAFE_RE.sub("", " ".join(str(value).split()))
 
-    def export_mermaid(self, tree: FamilyTree, direction: str = "BT") -> str:
+    def export_mermaid(self, tree: FamilyTree, direction: str = "TD") -> str:
         """Génère le diagramme Mermaid v11, coloré par région d'origine du patronyme."""
         palette = {
             "cantal": "fill:#e8f4f8,stroke:#2b78e4,stroke-width:2px",
@@ -221,12 +221,14 @@ class GedcomExporter:
         lines = [
             f"graph {direction}",
             "    %% Couleurs par région d'origine, définies dans src/genealogy/variants.py",
+            "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:8,ry:8",
         ]
         for style_class in list(REGION_STYLE_GROUPS) + [DEFAULT_REGION_STYLE]:
             rule = palette.get(style_class, palette[DEFAULT_REGION_STYLE])
             lines.append(f"    classDef {style_class} {rule}")
 
         id_map = {}
+        node_defs = {}
         for idx, (node_id, person) in enumerate(tree.nodes.items(), 1):
             safe_id = f"P{idx}"
             id_map[node_id] = safe_id
@@ -251,20 +253,55 @@ class GedcomExporter:
                 label += f"<br/><i>{place}</i>"
 
             style_class = region_style_for_surname(person.last_name)
-            lines.append(f'    {safe_id}["{label}"]:::{style_class}')
+            node_defs[node_id] = f'{safe_id}["{label}"]:::{style_class}'
 
-        for rel in tree.edges:
-            source = id_map.get(rel.source_id)
-            target = id_map.get(rel.target_id)
-            if source and target:
-                lines.append(f"    {source} --> {target}")
-
-        # Liens d'union / mariage entre conjoints (co-parents ayant un enfant en commun)
         families, _, _ = self._build_families(tree)
-        for family in families:
+        placed_nodes = set()
+
+        for idx, family in enumerate(families, 1):
+            fam_id = f"FAM{idx}"
+            union_node = f'{fam_id}["💍 Union"]:::union'
             h, w = family["husb"], family["wife"]
+
             if h and w and h in id_map and w in id_map:
                 s1, s2 = id_map[h], id_map[w]
-                lines.append(f"    {s1} -.-|💍 union| {s2}")
+                def1, def2 = node_defs.get(h), node_defs.get(w)
+
+                lines.append(f'    subgraph SG_{fam_id} [" "]')
+                lines.append('        direction LR')
+                if def1 and h not in placed_nodes:
+                    lines.append(f'        {def1}')
+                    placed_nodes.add(h)
+                lines.append(f'        {union_node}')
+                if def2 and w not in placed_nodes:
+                    lines.append(f'        {def2}')
+                    placed_nodes.add(w)
+                lines.append(f'        {s1} --- {fam_id} --- {s2}')
+                lines.append('    end')
+            elif h or w:
+                p = h or w
+                s_p = id_map.get(p)
+                def_p = node_defs.get(p)
+                if def_p and p not in placed_nodes:
+                    lines.append(f'    {def_p}')
+                    placed_nodes.add(p)
+                lines.append(f'    {fam_id}["🏠"]:::union')
+                if s_p:
+                    lines.append(f'    {s_p} --> {fam_id}')
+
+            for child_id in family["children"]:
+                s_c = id_map.get(child_id)
+                def_c = node_defs.get(child_id)
+                if def_c and child_id not in placed_nodes:
+                    lines.append(f'    {def_c}')
+                    placed_nodes.add(child_id)
+                if s_c:
+                    lines.append(f'    {fam_id} --> {s_c}')
+
+        for node_id in tree.nodes:
+            if node_id not in placed_nodes:
+                def_node = node_defs.get(node_id)
+                if def_node:
+                    lines.append(f'    {def_node}')
 
         return "\n".join(lines) + "\n"

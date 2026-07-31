@@ -186,7 +186,7 @@ def test_export_mermaid_avec_person_id_est_restreint():
     # Le sous-arbre à profondeur nulle ne contient qu'un seul nœud : sa syntaxe est
     # nécessairement plus courte que le diagramme complet (4 individus dans la fixture).
     assert len(subtree) < len(full)
-    assert "graph BT" in subtree
+    assert "graph TD" in subtree
 
 
 def test_export_mermaid_person_id_inconnu_404():

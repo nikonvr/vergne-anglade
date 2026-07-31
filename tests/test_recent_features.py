@@ -148,3 +148,16 @@ def test_feature_4_filtre_csv_et_scores_honnêtes():
     finally:
         if temp_csv_path.exists():
             temp_csv_path.unlink()
+
+
+def test_feature_5_disposition_pro_arbres_et_subgraphs(sample_family_tree):
+    """Vérifie que GedcomExporter.export_mermaid produit un schéma pro avec subgraphs direction LR et nœuds 💍 Union."""
+    from src.export.gedcom import GedcomExporter
+
+    mermaid_code = GedcomExporter().export_mermaid(sample_family_tree)
+
+    assert "graph TD" in mermaid_code
+    assert "subgraph SG_FAM" in mermaid_code
+    assert "direction LR" in mermaid_code
+    assert '💍 Union' in mermaid_code
+

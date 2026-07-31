@@ -926,11 +926,13 @@ def build_standalone_html() -> Path:
 
         function buildSubtreeMermaid(ids, directIds = new Set()) {{
             const lines = [
-                'graph BT',
+                'graph TD',
                 "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
                 "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4",
                 "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:8,ry:8",
             ];
+
+            const nodeDefinitions = new Map();
             const idMap = new Map();
             let counter = 1;
             ids.forEach(nid => {{
@@ -948,17 +950,16 @@ def build_standalone_html() -> Path:
                     label = '<b>' + firstName + '</b><br/><b>' + lastName + '</b>';
                     if (dates) label += '<br/>(' + dates + ')';
                     if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
-                    lines.push('    ' + safeId + '["' + label + '"]:::defaut');
+                    nodeDefinitions.set(nid, safeId + '["' + label + '"]:::defaut');
                 }} else {{
                     // Collatéraux (frères & sœurs) / conjoints : police plus claire (#64748b), style atténué, bordure pointillée
                     label = '<span style="color:#64748b;"><b>' + firstName + '</b><br/><b>' + lastName + '</b></span>';
                     if (dates) label += '<br/><span style="color:#94a3b8;font-size:11px;">(' + dates + ')</span>';
                     if (node.place) label += '<br/><span style="color:#94a3b8;font-size:11px;"><i>' + mermaidSafe(node.place) + '</i></span>';
-                    lines.push('    ' + safeId + '["' + label + '"]:::collat');
+                    nodeDefinitions.set(nid, safeId + '["' + label + '"]:::collat');
                 }}
             }});
 
-            // Regrouper par famille/couple (représentation des logiciels de généalogie type Heredis / Geneanet / Gramps)
             const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
             const parentsMap = new Map();
 
@@ -983,21 +984,60 @@ def build_standalone_html() -> Path:
                 familyNodes.get(famKey).children.push(childId);
             }});
 
+            const placedNodes = new Set();
+
+            // Placer chaque couple dans un subgraph direction LR pour forcer l'alignement horizontal côte-à-côte
             familyNodes.forEach(fam => {{
                 const famId = fam.famId;
+                const unionNode = famId + '["💍 Union"]:::union';
+
                 if (fam.parents.length >= 2) {{
-                    lines.push('    ' + famId + '["💍 Union"]:::union');
-                }} else {{
-                    lines.push('    ' + famId + '["🏠"]:::union');
+                    const p1 = fam.parents[0];
+                    const p2 = fam.parents[1];
+                    const s1 = idMap.get(p1);
+                    const s2 = idMap.get(p2);
+                    const def1 = nodeDefinitions.get(p1);
+                    const def2 = nodeDefinitions.get(p2);
+
+                    lines.push('    subgraph SG_' + famId + ' [" "]');
+                    lines.push('        direction LR');
+                    if (def1 && !placedNodes.has(p1)) {{ lines.push('        ' + def1); placedNodes.add(p1); }}
+                    lines.push('        ' + unionNode);
+                    if (def2 && !placedNodes.has(p2)) {{ lines.push('        ' + def2); placedNodes.add(p2); }}
+                    if (s1 && s2) {{
+                        lines.push('        ' + s1 + ' --- ' + famId + ' --- ' + s2);
+                    }}
+                    lines.push('    end');
+                }} else if (fam.parents.length === 1) {{
+                    const p1 = fam.parents[0];
+                    const s1 = idMap.get(p1);
+                    const def1 = nodeDefinitions.get(p1);
+                    if (def1 && !placedNodes.has(p1)) {{
+                        lines.push('    ' + def1);
+                        placedNodes.add(p1);
+                    }}
+                    lines.push('    ' + unionNode);
+                    if (s1) lines.push('    ' + s1 + ' --> ' + famId);
                 }}
-                fam.parents.forEach(pId => {{
-                    const sId = idMap.get(pId);
-                    if (sId) lines.push('    ' + sId + ' --> ' + famId);
-                }});
+
+                // Liaisons descendantes du nœud d'union vers les enfants
                 fam.children.forEach(cId => {{
                     const sId = idMap.get(cId);
+                    const cDef = nodeDefinitions.get(cId);
+                    if (cDef && !placedNodes.has(cId)) {{
+                        lines.push('    ' + cDef);
+                        placedNodes.add(cId);
+                    }}
                     if (sId) lines.push('    ' + famId + ' --> ' + sId);
                 }});
+            }});
+
+            // Placer les individus restants non encore associés à une famille
+            ids.forEach(nid => {{
+                if (!placedNodes.has(nid)) {{
+                    const def = nodeDefinitions.get(nid);
+                    if (def) lines.push('    ' + def);
+                }}
             }});
 
             return lines.join('\\n');
