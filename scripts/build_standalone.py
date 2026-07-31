@@ -56,7 +56,7 @@ def build_standalone_html():
         .animate-marquee {{
             display: inline-block;
             white-space: nowrap;
-            animation: marquee 90s linear infinite;
+            animation: marquee 240s linear infinite;
         }}
         .animate-marquee:hover {{
             animation-play-state: paused;
