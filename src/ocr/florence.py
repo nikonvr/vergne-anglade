@@ -133,6 +133,7 @@ class FlorenceOCREngine:
         min_gap = int(os.environ.get("CERTUS_SEGMENT_MIN_GAP") or 20)
         min_height = int(os.environ.get("CERTUS_SEGMENT_MIN_HEIGHT") or 50)
         margin_ratio = float(os.environ.get("CERTUS_SEGMENT_MARGIN_RATIO") or 0.15)
+        gap_factor = float(os.environ.get("CERTUS_SEGMENT_GAP_FACTOR") or 2.0)
 
         if not HAS_OPENCV:
             self.logger.warning(
@@ -173,8 +174,8 @@ class FlorenceOCREngine:
 
             ink_per_row = np.sum(analysis_zone, axis=1)
 
-            # Une ligne est considérée comme séparatrice (blanche) si elle contient très peu d'encre (< 5% de la zone utile)
-            white_threshold = max(5, int(effective_w * 0.05))
+            # Une ligne est considérée comme séparatrice (blanche) si elle contient très peu d'encre (<= 1% de la zone utile)
+            white_threshold = max(1, int(effective_w * 0.01))
             is_white_row = ink_per_row <= white_threshold
 
             # Si l'image est quasiment dépourvue d'encre ou entièrement blanche (aucun contraste encre/fond)
@@ -185,8 +186,8 @@ class FlorenceOCREngine:
                 )
                 return [preprocessed]
 
-            # Détecter les plages contiguës de lignes blanches
-            white_gaps = []
+            # Détecter toutes les plages contiguës de lignes blanches et leurs hauteurs
+            all_gaps = []
             gap_start = None
             for y, white in enumerate(is_white_row):
                 if white:
@@ -194,15 +195,28 @@ class FlorenceOCREngine:
                         gap_start = y
                 else:
                     if gap_start is not None:
-                        if (y - gap_start) >= min_gap:
-                            white_gaps.append((gap_start, y))
+                        all_gaps.append((gap_start, y, y - gap_start))
                         gap_start = None
-            if gap_start is not None and (height - gap_start) >= min_gap:
-                white_gaps.append((gap_start, height))
+            if gap_start is not None:
+                all_gaps.append((gap_start, height, height - gap_start))
 
-            # Points de coupe au milieu des bandes blanches
+            gap_heights = [h for _, _, h in all_gaps]
+
+            # Sélection adaptative des séparations d'actes basée sur la tendance centrale des écarts
+            if gap_heights:
+                trend_central = float(np.mean(gap_heights))
+                if max(gap_heights) > min(gap_heights) * 1.5:
+                    adaptive_thresh = max(float(min_gap), trend_central * gap_factor)
+                else:
+                    adaptive_thresh = float(min_gap)
+            else:
+                adaptive_thresh = float(min_gap)
+
+            act_gaps = [g for g in all_gaps if g[2] >= adaptive_thresh]
+
+            # Points de coupe au milieu des bandes blanches sélectionnées
             cut_points = []
-            for g_start, g_end in white_gaps:
+            for g_start, g_end, h in act_gaps:
                 mid = (g_start + g_end) // 2
                 if 0 < mid < height:
                     cut_points.append(mid)

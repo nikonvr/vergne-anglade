@@ -207,6 +207,25 @@ arbre vide. La base SQLite n'est pas publiée.
 
 ---
 
+## Traitement par lot des registres d'archives
+
+Le script `scripts/batch_transcribe.py` permet d'exécuter le pipeline de transcription par lot, idempotent et reprenable, sur un répertoire de scans de registres :
+
+```bash
+# Traitement par lot sur un répertoire d'images d'archives
+python scripts/batch_transcribe.py --source /chemin/vers/scans
+
+# Exécution en mode simulation / validation sans écriture en base (--dry-run)
+python scripts/batch_transcribe.py --source /chemin/vers/scans --limit 5 --dry-run
+
+# Forcer le retraitement d'images déjà enregistrées au registre (--force)
+python scripts/batch_transcribe.py --source /chemin/vers/scans --force
+```
+
+Le script s'appuie sur le registre JSON `.certus_cache/batch_ledger.json` (ou `CERTUS_BATCH_LEDGER`) pour mémoriser les empreintes SHA-256 des images et les identifiants d'actes créés, garantissant ainsi qu'aucun doublon n'est généré lors de réexécutions successives.
+
+---
+
 ## Tests
 
 ```bash

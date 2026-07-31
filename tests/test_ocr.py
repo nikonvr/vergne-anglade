@@ -142,7 +142,9 @@ def test_segment_acts_image_illisible(tmp_path, monkeypatch):
 
 @pytest.mark.slow
 def test_segment_acts_scan_reel(tmp_path, monkeypatch):
-    """Exécute segment_acts sur un vrai scan du dépôt et exige au moins 2 segments."""
+    """Exécute segment_acts sur un vrai scan du dépôt et exige une médiane de bandes d'encre par segment >= 3 et entre 2 et 10 segments."""
+    import cv2
+    import numpy as np
     from pathlib import Path
 
     scan_path = Path("2014-12-14 12.03.15.jpg")
@@ -155,7 +157,40 @@ def test_segment_acts_scan_reel(tmp_path, monkeypatch):
     engine = FlorenceOCREngine()
     segments = engine.segment_acts(scan_path)
 
-    assert len(segments) >= 2
+    # 1. Le nombre de segments doit rester dans une fourchette plausible (entre 2 et 10)
+    assert 2 <= len(segments) <= 10
+
+    # 2. Compter les bandes d'encre contiguës par segment
+    def count_ink_bands(seg_path: Path) -> int:
+        img_cv = cv2.imread(str(seg_path), cv2.IMREAD_GRAYSCALE)
+        if img_cv is None:
+            return 0
+        h, w = img_cv.shape
+        otsu_thresh, _ = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binary_ink = cv2.threshold(img_cv, otsu_thresh, 1, cv2.THRESH_BINARY_INV)
+
+        margin_x = int(w * 0.15)
+        analysis_zone = binary_ink[:, margin_x : w - margin_x] if margin_x > 0 else binary_ink
+        effective_w = analysis_zone.shape[1]
+
+        row_ink = np.sum(analysis_zone, axis=1)
+        ink_thresh = max(1.0, np.median(row_ink) * 0.5)
+        is_ink_row = row_ink > ink_thresh
+        transitions = 0
+        in_ink = False
+        for val in is_ink_row:
+            if val and not in_ink:
+                transitions += 1
+                in_ink = True
+            elif not val and in_ink:
+                in_ink = False
+        return transitions
+
+    ink_band_counts = [count_ink_bands(seg) for seg in segments]
+    median_bands = float(np.median(ink_band_counts))
+
+    # 3. La médiane du nombre de bandes d'encre par segment doit être >= 3
+    assert median_bands >= 3.0
 
 
 def test_segment_acts_bande_courte_warning(tmp_path, monkeypatch, caplog):

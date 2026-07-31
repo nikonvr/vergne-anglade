@@ -34,6 +34,14 @@ class SimulatedBackend(HTRBackend):
         path = Path(image_path)
         if not path.is_file():
             raise HTRError(f"Image introuvable : {path.name}")
+        try:
+            from PIL import Image
+
+            with Image.open(path) as img:
+                img.verify()
+        except Exception as exc:
+            raise HTRError(f"Image corrompue ou illisible : {path.name} ({exc})")
+
         return HTRResult(
             text=f"{SIMULATED_MARKER} Image : {path.name}.",
             backend=self.name,

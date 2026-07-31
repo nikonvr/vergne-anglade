@@ -223,6 +223,8 @@ ambiguë se résout par la formule attendue, non par un meilleur modèle.
 | `CERTUS_SEGMENT_MIN_GAP` | hauteur minimale (px) d'une bande blanche séparatrice d'actes | `20` |
 | `CERTUS_SEGMENT_MIN_HEIGHT` | hauteur minimale (px) d'un acte découpé retenu | `50` |
 | `CERTUS_SEGMENT_MARGIN_RATIO` | ratio des marges latérales à ignorer pour la détection de la zone de texte | `0.15` |
+| `CERTUS_SEGMENT_GAP_FACTOR` | facteur multiplicateur d'écart adaptatif pour la séparation des actes | `2.0` |
+| `CERTUS_BATCH_LEDGER` | chemin du registre JSON de suivi des traitements par lot | `.certus_cache/batch_ledger.json` |
 | `ANTHROPIC_API_KEY` | moteur `claude_vision` et extraction | — |
 
 ---
