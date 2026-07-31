@@ -17,8 +17,11 @@ class CertusOrchestrator:
     Il fait le lien entre l'extraction visuelle (OCR), l'analyse sémantique (LLM),
     le stockage (DB) et la reconstruction métier (Genealogy).
     """
-    _tree_cache = {"tree": None, "invalidated": True}
-    
+    # Le cache mémorise l'arbre ET le TreeBuilder qui l'a construit : le graphe networkx
+    # vit sur l'instance du builder, donc servir un arbre en cache sans son builder
+    # laissait le graphe vide et rendait toute analyse de parenté impossible.
+    _tree_cache = {"tree": None, "builder": None, "invalidated": True}
+
     def __init__(self, db_manager: DatabaseManager):
         self.logger = logger
         self.db_manager = db_manager
@@ -29,7 +32,14 @@ class CertusOrchestrator:
 
     @classmethod
     def invalidate_tree_cache(cls):
+        """Marque le cache comme périmé : arbre et builder seront reconstruits."""
         cls._tree_cache["invalidated"] = True
+        cls._tree_cache["builder"] = None
+
+    @classmethod
+    def reset_tree_cache(cls):
+        """Vide complètement le cache. Indispensable à l'isolation entre deux tests."""
+        cls._tree_cache = {"tree": None, "builder": None, "invalidated": True}
 
     def process_department_register(self, department_code: str, output_dir: Path | str = "downloads") -> int:
         """
@@ -79,7 +89,18 @@ class CertusOrchestrator:
             if progress_callback:
                 progress_callback("Analyse sémantique (LLM)", 66)
             act = self.parser_engine.parse(raw_text)
-            
+
+            # Aucune donnée simulée ne doit entrer en base sans être marquée comme telle.
+            if getattr(self.ocr_engine, "last_result_simulated", False):
+                act.is_simulated = True
+                if not act.source_type.startswith("SIMULATED_"):
+                    act.source_type = f"SIMULATED_{act.source_type}"
+                act.confidence_score = 0.0
+                act.reliability_score = 0.0
+                self.logger.warning(
+                    "Acte issu d'un OCR simulé : marqué is_simulated=True et scores à 0."
+                )
+
             # 3. Persistance en Base de Données
             self.logger.info("Étape 3/3 : Sauvegarde relationnelle...")
             if progress_callback:
@@ -100,19 +121,37 @@ class CertusOrchestrator:
         Interroge la base de données pour récupérer tous les actes connus
         et lance le moteur de reconstruction généalogique avec mise en cache.
         """
-        if not self._tree_cache["invalidated"] and self._tree_cache["tree"] is not None:
+        cached_builder = self._tree_cache.get("builder")
+        if (
+            not self._tree_cache["invalidated"]
+            and self._tree_cache["tree"] is not None
+            and cached_builder is not None
+        ):
+            # On restaure le builder d'origine : sans lui, self.tree_builder serait un
+            # builder neuf au graphe vide et find_common_ancestor / get_relationship_path
+            # renverraient systématiquement None et [].
+            self._tree_builder = cached_builder
             self.logger.info("Retour de l'arbre généalogique depuis le cache.")
             return self._tree_cache["tree"]
 
         self.logger.info("Génération de l'arbre généalogique global en cours...")
-        
+
         with self.db_manager.get_session() as session:
             repo = ActRepository(session)
             acts = repo.get_all_acts()
-            
+
         # Construction du graphe
         tree = self.tree_builder.process_acts(acts)
         self._tree_cache["tree"] = tree
+        self._tree_cache["builder"] = self.tree_builder
         self._tree_cache["invalidated"] = False
+
+        report = self.tree_builder.validate()
+        if not report["is_acyclic"]:
+            self.logger.error(
+                "Arbre incohérent : %d cycle(s) de filiation détecté(s). %s",
+                len(report["cycles"]),
+                report["cycles"],
+            )
         self.logger.info(f"Arbre généré et mis en cache : {len(tree.nodes)} individus consolidés.")
         return tree

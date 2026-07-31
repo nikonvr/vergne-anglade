@@ -1,7 +1,51 @@
+# --- Environnements et caches Python ---
 .venv/
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Artefacts de packaging (ne jamais versionner les métadonnées générées) ---
+build/
+dist/
+*.egg-info/
+src/*.egg-info/
+
+# --- Bases de données locales (artefacts de travail, régénérables) ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 test_certus_temp.db
+
+# --- Numérisations et pièces d'archives (plus de 100 Mo de scans à la racine) ---
+# Les images sources restent sur le disque de travail et ne sont pas publiées.
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.png
+*.PNG
+*.tif
+*.tiff
+*.pdf
+*.zip
+.picasa.ini
+.picasaoriginals/
+
+# --- Sorties de traitement OCR ---
+preprocessed_*
+.certus_cache/
 downloads/
+
+# --- Code mis de côté par l'humain (scripts périmés, non exécutés) ---
+attic/
+
+# --- Artefact PUBLIÉ : il DOIT rester versionné (GitHub Pages) ---
+# index.html est le SEUL artefact publié et il est volontairement suivi :
+# ne l'ajoutez pas à ce fichier. Le doublon historique
+# vergne_genealogy_standalone.html a été supprimé (270 Ko identiques à index.html).
+# Si un jour la page publique embarque une image, la ré-autoriser ici, p. ex. :
+#   !docs/assets/logo.png

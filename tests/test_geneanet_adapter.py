@@ -1,35 +1,54 @@
+"""Adaptateurs de sources en ligne (constats C1 et M3).
+
+GeneanetAdapter portait un couple identifiant/mot de passe en clair comme valeur par défaut,
+et fabriquait un acte à partir de la requête avec un score de confiance de 0,98.
+"""
+
 import pytest
+
 from src.core.models import SearchQuery
-from src.crawler.adapters import GeneanetAdapter
+from src.core.simulation import SIMULATED_PREFIX
+from src.crawler.adapters import GeneanetAdapter, MemoireDesHommesAdapter
 
-@pytest.mark.anyio
-async def test_geneanet_adapter_unauthenticated():
-    adapter = GeneanetAdapter(username="", password="")
-    assert not adapter.is_authenticated
-    
-    query = SearchQuery(last_name="ANGLADE", first_name="Jean")
-    acts = await adapter.search(query)
-    
-    assert len(acts) == 1
-    assert acts[0].source_type == "GENEANET_PUBLIC"
-    assert acts[0].persons[0].last_name == "ANGLADE"
 
-@pytest.mark.anyio
-async def test_geneanet_adapter_authenticated():
-    adapter = GeneanetAdapter(username="test_user", password="secret_password")
-    assert adapter.is_authenticated
-    
-    query = SearchQuery(last_name="VERGNE", first_name="Pierre")
-    acts = await adapter.search(query)
-    
-    assert len(acts) == 1
-    assert acts[0].source_type == "GENEANET_PREMIUM"
-    assert acts[0].confidence_score == 0.98
-    assert acts[0].persons[0].last_name == "VERGNE"
+def test_aucun_identifiant_en_dur(monkeypatch):
+    """C1 : sans variables d'environnement, l'adaptateur n'est pas authentifié."""
+    monkeypatch.delenv("GENEANET_USERNAME", raising=False)
+    monkeypatch.delenv("GENEANET_PASSWORD", raising=False)
 
-@pytest.mark.anyio
-async def test_geneanet_adapter_empty_query():
     adapter = GeneanetAdapter()
-    query = SearchQuery(last_name="")
-    acts = await adapter.search(query)
-    assert len(acts) == 0
+
+    assert adapter.username is None
+    assert adapter.password is None
+    assert adapter.is_authenticated is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("adapter_class", [GeneanetAdapter, MemoireDesHommesAdapter])
+async def test_aucune_fabrication_sans_autorisation(adapter_class, monkeypatch):
+    """M3 : sans autorisation explicite, la source ne renvoie aucun acte inventé."""
+    monkeypatch.delenv("GENEANET_USERNAME", raising=False)
+    monkeypatch.delenv("GENEANET_PASSWORD", raising=False)
+
+    acts = await adapter_class().search(SearchQuery(last_name="ANGLADE"))
+
+    assert acts == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("adapter_class", [GeneanetAdapter, MemoireDesHommesAdapter])
+async def test_acte_simule_entierement_marque(adapter_class, allow_simulation):
+    """M3 : un acte simulé porte le drapeau, le préfixe de provenance et des scores nuls."""
+    acts = await adapter_class().search(SearchQuery(last_name="VERGNE", first_name="Pierre"))
+
+    assert len(acts) == 1
+    act = acts[0]
+    assert act.is_simulated is True
+    assert act.source_type.startswith(SIMULATED_PREFIX)
+    assert act.confidence_score == 0.0
+    assert act.reliability_score == 0.0
+
+
+@pytest.mark.anyio
+async def test_requete_sans_patronyme_ne_renvoie_rien(allow_simulation):
+    assert await GeneanetAdapter().search(SearchQuery(last_name="")) == []

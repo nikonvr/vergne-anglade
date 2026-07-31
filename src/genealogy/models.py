@@ -2,11 +2,18 @@ from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 
 class ConsolidatedPerson(BaseModel):
+    """Noeud d'identité consolidé du graphe généalogique.
+
+    source_id (ex. "@I3@") est l'identifiant stable du GEDCOM : quand il est renseigné,
+    il fait autorité pour l'identité et évite la fusion d'homonymes (constat C3).
+    """
     id: str
+    source_id: Optional[str] = None
     first_name: str
     last_name: str
     mentions: int = 1
     occupation: Optional[str] = None
+    sex: Optional[str] = None            # "M" | "F" | None
     birth_date: Optional[str] = None
     birth_place: Optional[str] = None
     death_date: Optional[str] = None
@@ -16,6 +23,7 @@ class Relationship(BaseModel):
     source_id: str
     target_id: str
     rel_type: str
+    family_id: Optional[str] = None      # id stable de la famille GEDCOM, ex "@F108@"
 
 class FamilyTree(BaseModel):
     nodes: Dict[str, ConsolidatedPerson] = Field(default_factory=dict)

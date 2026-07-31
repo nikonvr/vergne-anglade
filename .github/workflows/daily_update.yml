@@ -1,18 +1,31 @@
 name: Veille Généalogique Quotidienne (CERTUS Cron)
 
+# Pas de déclencheur « push » : ce workflow pousse lui-même un commit sur main,
+# ce qui provoquerait une boucle d'exécutions. Uniquement planifié ou manuel.
 on:
-  push:
-    branches:
-      - main
   schedule:
     # Exécution automatique chaque nuit à 00:00 UTC (minuit)
     - cron: '0 0 * * *'
   workflow_dispatch:
     # Permet de lancer le robot manuellement depuis l'onglet Actions sur GitHub
 
+permissions:
+  contents: write
+
+concurrency:
+  group: veille-genealogique
+  cancel-in-progress: false
+
 jobs:
   daily-update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Chemin du GEDCOM source, fourni par une variable ou un secret de dépôt.
+      # Vide ou introuvable => régénération et publication sautées.
+      CERTUS_GEDCOM_PATH: ${{ vars.CERTUS_GEDCOM_PATH || secrets.CERTUS_GEDCOM_PATH }}
+      # Politique anti-fabrication : aucune donnée simulée ne doit être publiée.
+      CERTUS_ALLOW_SIMULATED: '0'
 
     steps:
       - name: Récupération du code
@@ -25,16 +38,75 @@ jobs:
 
       - name: Installation des dépendances
         run: |
-          pip install uv
-          uv pip install --system pytest fastapi uvicorn requests httpx networkx jinja2 pydantic
+          python -m pip install --upgrade pip uv
+          uv pip install --system -e ".[dev]"
+
+      - name: Exécution de la suite de tests
+        run: python -m pytest
+
+      - name: Vérification du GEDCOM source
+        id: gedcom
+        run: |
+          if [ -z "${CERTUS_GEDCOM_PATH}" ]; then
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            {
+              echo '### Régénération de la page publique ignorée'
+              echo
+              echo "La variable de dépôt CERTUS_GEDCOM_PATH n'est pas définie :"
+              echo "aucun GEDCOM source n'est disponible sur ce runner."
+              echo "index.html a été laissé intact (aucun arbre vide publié)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ ! -f "${CERTUS_GEDCOM_PATH}" ]; then
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            {
+              echo '### Régénération de la page publique ignorée'
+              echo
+              echo "CERTUS_GEDCOM_PATH est définie mais le fichier GEDCOM est"
+              echo "introuvable sur ce runner (absent ou non lisible)."
+              echo "index.html a été laissé intact (aucun arbre vide publié)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+            echo 'GEDCOM source trouvé : régénération autorisée.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Exécution du robot de recherche d'archives & mise à jour
-        run: |
-          python scripts/daily_archival_cron.py
+        if: steps.gedcom.outputs.available == 'true'
+        run: python scripts/daily_archival_cron.py
 
-      - name: Publication des nouveaux ancêtres sur GitHub Pages
+      - name: Contrôle de non-vacuité de l'arbre régénéré
+        if: steps.gedcom.outputs.available == 'true'
+        run: |
+          python - <<'PY'
+          import sys
+
+          from src.database.engine import DatabaseManager
+          from src.database.repository import ActRepository
+
+          db = DatabaseManager()
+          with db.get_session() as session:
+              acts = ActRepository(session).get_all_acts()
+          print(f"Actes présents en base après régénération : {len(acts)}")
+          if not acts:
+              sys.exit(
+                  "Base vide après régénération : publication annulée pour ne pas "
+                  "écraser index.html par un arbre vide."
+              )
+          PY
+
+      - name: Publication de la page publique sur GitHub Pages
+        if: steps.gedcom.outputs.available == 'true'
         run: |
           git config user.name "CERTUS Archival Bot"
-          git config user.email "bot@certus-genealogy.org"
-          git add index.html vergne_genealogy_standalone.html certus_genealogy.db
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Nouvelles données généalogiques d'archives" && git push)
+          git config user.email "certus-archival-bot@users.noreply.github.com"
+          # La base SQLite n'est jamais publiée : c'est un artefact régénérable.
+          # index.html est le SEUL artefact publié : le doublon historique
+          # vergne_genealogy_standalone.html a été supprimé (270 Ko identiques).
+          git add index.html
+          if git diff --staged --quiet; then
+            echo 'Aucune évolution de la page publique : rien à publier.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "Mise à jour automatique de la page généalogique publique"
+            git push
+            echo 'Page publique mise à jour et publiée.' >> "$GITHUB_STEP_SUMMARY"
+          fi

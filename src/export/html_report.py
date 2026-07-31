@@ -1,16 +1,35 @@
+import html as html_module
 from pathlib import Path
+from typing import Optional
+
 from src.genealogy.models import FamilyTree
 
+
 class HtmlReportExporter:
-    """Générateur de rapport généalogique imprimable au format HTML."""
-    
+    """Générateur de rapport généalogique imprimable au format HTML.
+
+    Toute valeur issue des données est échappée : un patronyme contenant du balisage était
+    auparavant interpolé tel quel dans le document.
+    """
+
+    @staticmethod
+    def _esc(value: Optional[str]) -> str:
+        return html_module.escape(str(value), quote=True) if value else ""
+
+    @classmethod
+    def _short_place(cls, place: Optional[str]) -> str:
+        """Ne conserve que la commune d'un lieu GEDCOM "Ville,CP,Département,...,PAYS,"."""
+        if not place:
+            return ""
+        return place.split(",")[0].strip()
+
     def generate_html(self, tree: FamilyTree) -> str:
-        html = [
+        parts = [
             "<!DOCTYPE html>",
             "<html lang='fr'>",
             "<head>",
             "  <meta charset='utf-8'>",
-            "  <title>CERTUS - Rapport Généalogique Famille VERGNE</title>",
+            "  <title>CERTUS - Rapport généalogique consolidé</title>",
             "  <style>",
             "    body { font-family: system-ui, -apple-system, sans-serif; margin: 40px; color: #1e293b; background: #f8fafc; }",
             "    h1 { color: #0f172a; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }",
@@ -20,29 +39,35 @@ class HtmlReportExporter:
             "  </style>",
             "</head>",
             "<body>",
-            "  <h1>Rapport Généalogique Consolidé - CERTUS</h1>",
+            "  <h1>Rapport généalogique consolidé - CERTUS</h1>",
             f"  <p>Nombre total d'individus identifiés : <strong>{len(tree.nodes)}</strong></p>",
-            "  <div class='person-list'>"
+            "  <div class='person-list'>",
         ]
 
         for node_id, person in tree.nodes.items():
-            html.append("    <div class='person-card'>")
-            html.append(f"      <div class='person-name'>{person.first_name} {person.last_name}</div>")
-            meta = f"Identifiant: {node_id} | Mentions dans les actes: {person.mentions}"
+            full_name = f"{self._esc(person.first_name)} {self._esc(person.last_name)}".strip()
+            meta = [
+                f"Identifiant : {self._esc(node_id)}",
+                f"Mentions dans les actes : {person.mentions}",
+            ]
+            dates = " – ".join(
+                filter(None, [self._esc(person.birth_date), self._esc(person.death_date)])
+            )
+            if dates:
+                meta.append(f"Dates : {dates}")
+            place = self._short_place(person.birth_place or person.death_place)
+            if place:
+                meta.append(f"Lieu : {self._esc(place)}")
             if person.occupation:
-                meta += f" | Profession: {person.occupation}"
-            html.append(f"      <div class='person-meta'>{meta}</div>")
-            html.append("    </div>")
+                meta.append(f"Profession : {self._esc(person.occupation)}")
 
-        html.extend([
-            "  </div>",
-            "</body>",
-            "</html>"
-        ])
-        return "\n".join(html)
+            parts.append("    <div class='person-card'>")
+            parts.append(f"      <div class='person-name'>{full_name}</div>")
+            parts.append(f"      <div class='person-meta'>{' | '.join(meta)}</div>")
+            parts.append("    </div>")
+
+        parts.extend(["  </div>", "</body>", "</html>"])
+        return "\n".join(parts)
 
     def export(self, tree: FamilyTree, output_path: str | Path) -> None:
-        path = Path(output_path)
-        content = self.generate_html(tree)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+        Path(output_path).write_text(self.generate_html(tree), encoding="utf-8")

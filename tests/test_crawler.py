@@ -1,25 +1,48 @@
+"""Crawlers d'archives départementales (constat M3).
+
+Les crawlers écrivaient b"Simulated ... content" en se présentant comme un téléchargement
+réussi, et l'ancien test se contentait de vérifier qu'un fichier existait.
+"""
+
 import pytest
-from pathlib import Path
-import src.crawler
-from src.crawler.factory import ArchiveCrawlerFactory
+
+import src.crawler  # noqa: F401  (enregistre les crawlers dans la factory)
+from src.core.simulation import SimulationDisabledError
 from src.crawler.cantal import CantalCrawler
+from src.crawler.factory import ArchiveCrawlerFactory
 from src.crawler.puy_de_dome import PuyDeDomeCrawler
 
-def test_crawler_factory_multi_departments(tmp_path):
-    # Test Cantal (15)
-    cantal_crawler = ArchiveCrawlerFactory.get_crawler("15")
-    assert isinstance(cantal_crawler, CantalCrawler)
-    assert cantal_crawler.verify_connection() is True
 
-    file_15 = cantal_crawler.download_register_page(tmp_path)
-    assert file_15.exists()
-    assert file_15.name == "cantal_register_page.jpg"
+@pytest.mark.parametrize(
+    "code, expected_class",
+    [("15", CantalCrawler), ("63", PuyDeDomeCrawler)],
+)
+def test_factory_resout_le_bon_crawler(code, expected_class):
+    crawler = ArchiveCrawlerFactory.get_crawler(code)
+    assert isinstance(crawler, expected_class)
+    assert crawler.department_code == code
 
-    # Test Puy-de-Dôme (63)
-    puy_crawler = ArchiveCrawlerFactory.get_crawler("63")
-    assert isinstance(puy_crawler, PuyDeDomeCrawler)
-    assert puy_crawler.verify_connection() is True
 
-    file_63 = puy_crawler.download_register_page(tmp_path)
-    assert file_63.exists()
-    assert file_63.name == "puy_de_dome_register_page.jpg"
+def test_factory_refuse_un_departement_inconnu():
+    with pytest.raises(ValueError):
+        ArchiveCrawlerFactory.get_crawler("99")
+
+
+@pytest.mark.parametrize("code", ["15", "63"])
+def test_telechargement_refuse_sans_autorisation(code, tmp_path):
+    """M3 : sans téléchargement réel implémenté, le crawler échoue au lieu de simuler."""
+    crawler = ArchiveCrawlerFactory.get_crawler(code)
+    with pytest.raises((SimulationDisabledError, NotImplementedError)):
+        crawler.download_register_page(tmp_path)
+    assert crawler.last_download_simulated is False
+
+
+@pytest.mark.parametrize("code", ["15", "63"])
+def test_telechargement_simule_est_marque(code, tmp_path, allow_simulation):
+    """M3 : le fichier de substitution est explicitement identifié comme simulé."""
+    crawler = ArchiveCrawlerFactory.get_crawler(code)
+    path = crawler.download_register_page(tmp_path)
+
+    assert path.exists()
+    assert crawler.last_download_simulated is True
+    assert "SIMUL" in path.read_bytes().decode("utf-8", errors="ignore").upper()

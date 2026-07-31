@@ -1,22 +1,90 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "certus-genealogy"
 version = "0.1.0"
-description = "Reconstruction généalogique autonome par IA."
+description = "Reconstruction généalogique sourcée (GEDCOM, archives, OCR) avec API FastAPI."
+readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "CERTUS Genealogy contributors" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Framework :: FastAPI",
+]
+
+# Dépendances indispensables : sans elles aucun module du dépôt ne s'importe
+# (src.database utilise sqlalchemy, src.genealogy networkx, src.api fastapi)
+# et l'API ne peut pas être servie (uvicorn).
 dependencies = [
     "pydantic>=2.0.0",
-    "playwright>=1.40.0"
+    "sqlalchemy>=2.0.0",
+    "networkx>=3.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "rapidfuzz>=3.0.0",
 ]
 
 [project.optional-dependencies]
-ocr = ["torch", "transformers", "Pillow"]
-llm = ["openai"]
-database = ["sqlalchemy>=2.0.0"]
-genealogy = ["networkx>=3.0.0"]
-api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.28.0", "httpx>=0.27.0"]
-dev = ["pytest", "ruff", "black", "mypy"]
+# Prétraitement des images de registres (src/ocr/florence.py : OpenCV puis PIL).
+# torch/transformers couvrent le modèle HTR : ils ne sont pas encore importés
+# par le dépôt, seul le prétraitement d'image est implémenté.
+ocr = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "Pillow>=10.0.0",
+    "torch",
+    "transformers",
+]
+# Analyse sémantique optionnelle des transcriptions (src/parser/llm.py).
+llm = ["openai>=1.0.0"]
+# httpx est requis par fastapi.testclient.TestClient utilisé dans tests/.
+dev = [
+    "pytest>=8.0.0",
+    "pytest-timeout>=2.2.0",
+    "anyio>=4.0.0",
+    "httpx>=0.27.0",
+    "ruff",
+    "black",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+namespaces = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 pythonpath = ["."]
+addopts = "-ra"
+# Garde-fou (pytest-timeout) : un test qui dépasse 120 s est considéré comme
+# bloqué, la suite complète devant rester de l'ordre de la dizaine de secondes.
+timeout = 120
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv", "attic", "build_certus.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# E501 : les gabarits HTML/Mermaid de scripts/build_standalone.py et de
+# src/export/html_report.py contiennent des lignes volontairement longues.
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
+warn_return_any = false
+check_untyped_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+no_implicit_optional = false
+exclude = "(^\\.venv/|^attic/|^build_certus\\.py$)"
