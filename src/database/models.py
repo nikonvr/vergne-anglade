@@ -15,9 +15,9 @@ class DBAct(Base):
     location = Column(String(255), nullable=True)
     confidence_score = Column(Float, nullable=False)
     source_text = Column(Text, nullable=True)
-    source_type = Column(String(50), default="GEDCOM_HEREDIS")
+    source_type = Column(String(50), nullable=True)
     url_source = Column(String(500), nullable=True)
-    reliability_score = Column(Float, default=1.0)
+    reliability_score = Column(Float, nullable=True)
     # True = donnée non sourcée (démo/simulation), jamais présentée comme vérifiée.
     # server_default=text("0") : littéral numérique (et non la chaîne '0', toujours vraie
     # côté Python) pour les lignes déjà présentes lors de la migration.

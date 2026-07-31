@@ -446,6 +446,23 @@ def build_standalone_html() -> Path:
         </div>
     </div>
 
+    <!-- Fiche individuelle : détails, 2 parents, frères & sœurs, enfants -->
+    <div id="profile-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            <div class="bg-brand-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">📇</span>
+                    <h3 id="profile-modal-title" class="font-bold text-lg">Fiche individuelle</h3>
+                </div>
+                <button id="profile-modal-close-top" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
+            </div>
+            <div id="profile-modal-body" class="p-6 overflow-y-auto space-y-5 text-sm"></div>
+            <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 text-right">
+                <button id="profile-modal-close-bottom" class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-bold transition">Fermer</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
         CERTUS GENEALOGY — page publique générée le {build_time_str}
     </footer>
@@ -510,6 +527,13 @@ def build_standalone_html() -> Path:
                 branchButton.setAttribute('data-node-id', item.id);
                 branchButton.setAttribute('data-role', 'subtree');
                 actionCell.appendChild(branchButton);
+
+                const profileButton = document.createElement('button');
+                profileButton.className = 'inline-flex items-center gap-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs px-3 py-1.5 rounded-lg font-bold border border-sky-200 transition shadow-sm';
+                profileButton.textContent = '📇 Fiche';
+                profileButton.setAttribute('data-node-id', item.id);
+                profileButton.setAttribute('data-role', 'profile');
+                actionCell.appendChild(profileButton);
 
                 tr.appendChild(actionCell);
                 tbody.appendChild(tr);
@@ -638,6 +662,179 @@ def build_standalone_html() -> Path:
         }}
 
         function closeModal() {{ document.getElementById('act-modal').classList.add('hidden'); }}
+
+        function closeProfileModal() {{
+            document.getElementById('profile-modal').classList.add('hidden');
+        }}
+
+        function createPersonCard(person, subtitle) {{
+            const card = document.createElement('div');
+            card.className = 'flex items-center justify-between bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-200/80 transition cursor-pointer';
+            
+            const info = document.createElement('div');
+            const name = document.createElement('div');
+            name.className = 'font-bold text-slate-900';
+            name.textContent = ((person.first_name || '') + ' ' + (person.last_name || '')).trim() || 'Inconnu';
+            
+            const dates = [person.birth_date, person.death_date].filter(Boolean).join(' – ');
+            const details = [dates, person.place, person.occupation].filter(Boolean).join(' • ');
+            
+            const sub = document.createElement('div');
+            sub.className = 'text-xs text-slate-500 mt-0.5';
+            sub.textContent = (subtitle ? subtitle + ' — ' : '') + (details || "Aucune précision d'état civil");
+            
+            info.append(name, sub);
+            
+            const action = document.createElement('span');
+            action.className = 'text-xs font-bold text-brand-600 hover:underline shrink-0 ml-3';
+            action.textContent = 'Voir la fiche →';
+            
+            card.append(info, action);
+            card.addEventListener('click', () => openProfileModal(person.id));
+            return card;
+        }}
+
+        function openProfileModal(nodeId) {{
+            const node = NODES_BY_ID.get(nodeId);
+            if (!node) return;
+
+            document.getElementById('profile-modal-title').textContent =
+                'Fiche individuelle : ' + ((node.first_name || '') + ' ' + (node.last_name || '')).trim();
+
+            const body = document.getElementById('profile-modal-body');
+            body.replaceChildren();
+
+            // 1. En-tête : Informations personnelles
+            const mainCard = document.createElement('div');
+            mainCard.className = 'bg-brand-50/50 border border-brand-200/80 rounded-xl p-4 space-y-3';
+            
+            const mainName = document.createElement('h4');
+            mainName.className = 'text-base font-bold text-brand-950';
+            mainName.textContent = ((node.first_name || '') + ' ' + (node.last_name || '')).trim();
+            
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs';
+            
+            const dates = [node.birth_date, node.death_date].filter(Boolean).join(' – ');
+            grid.appendChild(metaBlock('Dates', dates || 'Non précisées'));
+            grid.appendChild(metaBlock('Lieu', node.place || 'Non précisé'));
+            grid.appendChild(metaBlock('Profession', node.occupation || 'Non précisée'));
+            
+            mainCard.append(mainName, grid);
+            body.appendChild(mainCard);
+
+            // 2. Parents (Père et Mère)
+            const parentEdges = EDGES.filter(e => e.target_id === nodeId && FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+            let fatherNode = null;
+            let motherNode = null;
+
+            parentEdges.forEach(e => {{
+                const rt = (e.rel_type || '').toLowerCase();
+                const p = NODES_BY_ID.get(e.source_id);
+                if (!p) return;
+                if (rt.startsWith('p') || rt === 'father' || rt === 'husb') {{
+                    fatherNode = p;
+                }} else if (rt.startsWith('m') || rt === 'mother' || rt === 'wife') {{
+                    motherNode = p;
+                }} else if (!fatherNode) {{
+                    fatherNode = p;
+                }} else if (!motherNode) {{
+                    motherNode = p;
+                }}
+            }});
+
+            const parentsSection = document.createElement('div');
+            parentsSection.className = 'space-y-2';
+            
+            const parentsTitle = document.createElement('h5');
+            parentsTitle.className = 'font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5';
+            parentsTitle.textContent = '👨‍👩‍👦 Parents';
+            parentsSection.appendChild(parentsTitle);
+
+            const parentsGrid = document.createElement('div');
+            parentsGrid.className = 'space-y-2';
+
+            if (fatherNode) {{
+                parentsGrid.appendChild(createPersonCard(fatherNode, 'Père'));
+            }} else {{
+                const empty = document.createElement('div');
+                empty.className = 'bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs text-slate-400 italic';
+                empty.textContent = 'Père : non identifié dans les actes du fonds';
+                parentsGrid.appendChild(empty);
+            }}
+
+            if (motherNode) {{
+                parentsGrid.appendChild(createPersonCard(motherNode, 'Mère'));
+            }} else {{
+                const empty = document.createElement('div');
+                empty.className = 'bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs text-slate-400 italic';
+                empty.textContent = 'Mère : non identifiée dans les actes du fonds';
+                parentsGrid.appendChild(empty);
+            }}
+            parentsSection.appendChild(parentsGrid);
+            body.appendChild(parentsSection);
+
+            // 3. Frères et Sœurs
+            const parentIds = new Set(parentEdges.map(e => e.source_id));
+            const siblingIds = new Set();
+            if (parentIds.size > 0) {{
+                EDGES.forEach(e => {{
+                    if (parentIds.has(e.source_id) && e.target_id !== nodeId && FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase())) {{
+                        siblingIds.add(e.target_id);
+                    }}
+                }});
+            }}
+            const siblings = Array.from(siblingIds).map(id => NODES_BY_ID.get(id)).filter(Boolean);
+
+            const siblingsSection = document.createElement('div');
+            siblingsSection.className = 'space-y-2';
+            
+            const siblingsTitle = document.createElement('h5');
+            siblingsTitle.className = 'font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5';
+            siblingsTitle.textContent = '👫 Frères & Sœurs (' + siblings.length + ')';
+            siblingsSection.appendChild(siblingsTitle);
+
+            if (siblings.length > 0) {{
+                const list = document.createElement('div');
+                list.className = 'space-y-2';
+                siblings.forEach(sib => list.appendChild(createPersonCard(sib)));
+                siblingsSection.appendChild(list);
+            }} else {{
+                const empty = document.createElement('div');
+                empty.className = 'bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs text-slate-400 italic';
+                empty.textContent = 'Aucun frère ou sœur identifié dans le fonds';
+                siblingsSection.appendChild(empty);
+            }}
+            body.appendChild(siblingsSection);
+
+            // 4. Enfants
+            const childEdges = EDGES.filter(e => e.source_id === nodeId && FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+            const childIds = new Set(childEdges.map(e => e.target_id));
+            const children = Array.from(childIds).map(id => NODES_BY_ID.get(id)).filter(Boolean);
+
+            const childrenSection = document.createElement('div');
+            childrenSection.className = 'space-y-2';
+            
+            const childrenTitle = document.createElement('h5');
+            childrenTitle.className = 'font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5';
+            childrenTitle.textContent = '👶 Enfants (' + children.length + ')';
+            childrenSection.appendChild(childrenTitle);
+
+            if (children.length > 0) {{
+                const list = document.createElement('div');
+                list.className = 'space-y-2';
+                children.forEach(child => list.appendChild(createPersonCard(child)));
+                childrenSection.appendChild(list);
+            }} else {{
+                const empty = document.createElement('div');
+                empty.className = 'bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs text-slate-400 italic';
+                empty.textContent = 'Aucun enfant identifié dans le fonds';
+                childrenSection.appendChild(empty);
+            }}
+            body.appendChild(childrenSection);
+
+            document.getElementById('profile-modal').classList.remove('hidden');
+        }}
 
         // ---------------------------------------------------------------- sous-arbre (zoom)
         // Cette page est statique (GitHub Pages, sans serveur) : le sous-arbre se calcule
@@ -807,8 +1004,11 @@ def build_standalone_html() -> Path:
             const button = event.target.closest('button[data-node-id]');
             if (!button || button.disabled) return;
             const nodeId = button.getAttribute('data-node-id');
-            if (button.getAttribute('data-role') === 'subtree') {{
+            const role = button.getAttribute('data-role');
+            if (role === 'subtree') {{
                 openSubtreeModal(nodeId);
+            }} else if (role === 'profile') {{
+                openProfileModal(nodeId);
             }} else {{
                 openModalForNode(nodeId);
             }}
@@ -819,6 +1019,11 @@ def build_standalone_html() -> Path:
         document.getElementById('modal-close-bottom').addEventListener('click', closeModal);
         document.getElementById('act-modal').addEventListener('click', event => {{
             if (event.target === document.getElementById('act-modal')) closeModal();
+        }});
+        document.getElementById('profile-modal-close-top').addEventListener('click', closeProfileModal);
+        document.getElementById('profile-modal-close-bottom').addEventListener('click', closeProfileModal);
+        document.getElementById('profile-modal').addEventListener('click', event => {{
+            if (event.target === document.getElementById('profile-modal')) closeProfileModal();
         }});
         document.getElementById('subtree-close-top').addEventListener('click', closeSubtreeModal);
         document.getElementById('subtree-close-bottom').addEventListener('click', closeSubtreeModal);
@@ -832,6 +1037,7 @@ def build_standalone_html() -> Path:
             if (event.key !== 'Escape') return;
             closeModal();
             closeSubtreeModal();
+            closeProfileModal();
         }});
 
         renderTable(NODES);

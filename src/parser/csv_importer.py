@@ -1,7 +1,10 @@
 import csv
+import logging
 from pathlib import Path
 from typing import List
+
 from src.core.models import Act, Person
+from src.genealogy.variants import is_branch_surname
 
 class CsvImporter:
     """Importeur de fichiers CSV/Excel (relevés associatifs type APROGEMERE)."""
@@ -15,7 +18,7 @@ class CsvImporter:
             raise FileNotFoundError(f"Fichier CSV introuvable : {self.path}")
 
         acts: List[Act] = []
-        filter_upper = surname_filter.upper()
+        logger = logging.getLogger("certus.parser.csv")
 
         with open(self.path, "r", encoding="utf-8", errors="ignore") as f:
             reader = csv.DictReader(f, delimiter=self.delimiter)
@@ -25,7 +28,9 @@ class CsvImporter:
                 first_name = norm_row.get("prenom") or norm_row.get("prénom") or norm_row.get("first_name") or ""
                 last_name = norm_row.get("nom") or norm_row.get("last_name") or ""
                 
-                if filter_upper and filter_upper not in last_name.upper():
+                # Comparaison EXACTE via variants.py (R6). L'ancien filtre par sous-chaîne
+                # ("VERGNE" in "LAVERGNE" → vrai) rattachait des individus étrangers au fonds.
+                if surname_filter and not is_branch_surname(last_name):
                     continue
 
                 act_type = norm_row.get("type") or norm_row.get("type_acte") or "Naissance"
@@ -44,15 +49,17 @@ class CsvImporter:
                     )
                 ]
 
+                # Un relevé associatif n'a pas la fiabilité d'un acte notarié original :
+                # les scores doivent refléter cette incertitude, pas afficher le maximum (R1).
                 act = Act(
                     act_type=act_type,
                     date=date,
                     location=location,
-                    confidence_score=1.0,
+                    confidence_score=0.7,
                     source_text=f"Relevé associatif CSV : {first_name} {last_name}",
                     source_type="CSV_APROGEMERE",
                     url_source=url_source,
-                    reliability_score=0.95,
+                    reliability_score=0.6,
                     persons=persons
                 )
                 acts.append(act)

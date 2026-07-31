@@ -26,9 +26,9 @@ class Act(BaseModel):
     persons: List[Person] = Field(default_factory=list)
     confidence_score: float = Field(...)
     source_text: Optional[str] = Field(None)
-    source_type: str = Field("GEDCOM_HEREDIS")
+    source_type: Optional[str] = Field(None)
     url_source: Optional[str] = Field(None)
-    reliability_score: float = Field(1.0)
+    reliability_score: Optional[float] = Field(None)
     is_simulated: bool = Field(False)           # True = donnée non sourcée (démo/simulation)
     family_id: Optional[str] = Field(None)      # id stable de la famille, ex "@F108@"
 

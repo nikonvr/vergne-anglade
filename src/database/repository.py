@@ -75,9 +75,9 @@ class ActRepository:
             persons=persons,
             confidence_score=db_act.confidence_score,
             source_text=db_act.source_text,
-            source_type=db_act.source_type or "GEDCOM_HEREDIS",
+            source_type=db_act.source_type or "INCONNU",
             url_source=db_act.url_source,
-            reliability_score=db_act.reliability_score if db_act.reliability_score is not None else 1.0,
+            reliability_score=db_act.reliability_score if db_act.reliability_score is not None else 0.0,
             is_simulated=bool(db_act.is_simulated),
             family_id=db_act.family_id,
         )
