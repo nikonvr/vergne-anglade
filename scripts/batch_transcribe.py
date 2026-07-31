@@ -50,15 +50,24 @@ def compute_sha256(file_path: Path) -> str:
     return hasher.hexdigest()
 
 
+def ledger_key(path: Path | str) -> str:
+    """Clé de registre normalisée pour un chemin d'image.
+
+    Point de vérité UNIQUE de cette normalisation (chemin absolu, séparateurs "/",
+    minuscules) : Windows n'étant pas sensible à la casse, deux appelants qui
+    calculeraient chacun leur propre variante finiraient par diverger et casser
+    l'idempotence ou la recherche de doublons. Tout code — y compris les tests —
+    doit appeler cette fonction plutôt que de recopier la normalisation.
+    """
+    return str(Path(path).resolve()).replace("\\", "/").lower()
+
+
 def load_ledger(ledger_path: Path) -> dict:
     if ledger_path.exists():
         try:
             with open(ledger_path, "r", encoding="utf-8") as f:
                 raw_data = json.load(f)
-                return {
-                    str(Path(k).resolve()).replace("\\", "/").lower(): v
-                    for k, v in raw_data.items()
-                }
+                return {ledger_key(k): v for k, v in raw_data.items()}
         except Exception as exc:
             logger.warning(
                 "Impossible de lire le registre JSON (%s), un nouveau registre sera créé : %s",
@@ -131,7 +140,7 @@ def process_batch(
 
     images_to_process = []
     for img_path in image_files:
-        rel_key = str(img_path.resolve()).replace("\\", "/").lower()
+        rel_key = ledger_key(img_path)
         sha256 = compute_sha256(img_path)
 
         if not force and resume and rel_key in ledger:

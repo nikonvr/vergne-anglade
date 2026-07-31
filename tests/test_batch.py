@@ -9,7 +9,7 @@ import src.ocr.backends  # noqa: F401
 from src.core.models import Act, Person
 from src.database.engine import DatabaseManager
 from src.database.repository import ActRepository
-from scripts.batch_transcribe import process_batch, load_ledger, get_ledger_path
+from scripts.batch_transcribe import process_batch, load_ledger, get_ledger_path, ledger_key
 
 
 @pytest.fixture(autouse=True)
@@ -63,8 +63,8 @@ def test_batch_trois_images_synthetiques(
     ledger = load_ledger(ledger_file)
     assert len(ledger) == 3
     for p in paths:
-        assert str(p.resolve()) in ledger
-        assert ledger[str(p.resolve())]["status"] == "OK"
+        assert ledger_key(p) in ledger
+        assert ledger[ledger_key(p)]["status"] == "OK"
 
 
 def test_batch_idempotence(
@@ -177,7 +177,7 @@ def test_batch_image_corrompue(
     assert exit_code == 1
 
     ledger = load_ledger(ledger_file)
-    corrupt_key = str(corrupt_file.resolve())
+    corrupt_key = ledger_key(corrupt_file)
     assert corrupt_key in ledger
     assert ledger[corrupt_key]["status"] == "FAILED"
     assert ledger[corrupt_key]["num_acts_created"] == 0
@@ -364,8 +364,11 @@ def test_batch_changement_empreinte_image_remplace(
         count1 = ActRepository(session).count_acts()
     finally:
         session.close()
+    old_act_ids = load_ledger(ledger_file)[ledger_key(img_path)]["act_ids"]
 
-    # Version 2 de l'image (contenu modifié)
+    # Version 2 de l'image (contenu modifié) : un rectangle différent peut légitimement
+    # produire un nombre de segments/actes différent. Ce n'est PAS le signe d'un bug ;
+    # ce que le remplacement garantit, c'est l'absence d'accumulation ET d'orphelins.
     img2 = Image.new("RGB", (100, 200), (255, 255, 255))
     ImageDraw.Draw(img2).rectangle([0, 100, 100, 160], fill=(50, 50, 50))
     img2.save(img_path)
@@ -375,9 +378,18 @@ def test_batch_changement_empreinte_image_remplace(
     session = db_manager.get_session()
     try:
         count2 = ActRepository(session).count_acts()
+        remaining_ids = {a.id for a in ActRepository(session).get_all_acts()}
     finally:
         session.close()
+    new_act_ids = load_ledger(ledger_file)[ledger_key(img_path)]["act_ids"]
 
-    # Le nombre d'actes ne doit pas s'accumuler
     assert count1 > 0
-    assert count2 == count1
+    assert old_act_ids  # la version 1 a bien produit des actes à remplacer
+    # Aucune accumulation ni orphelin : le total en base après remplacement correspond
+    # EXACTEMENT aux actes de la version 2 (que leur nombre ait changé ou non par rapport
+    # à la version 1). Note : SQLite peut réutiliser un identifiant après suppression
+    # complète d'une table, donc on ne peut pas exiger que les identifiants diffèrent —
+    # seule l'égalité exacte {actes en base} == {actes annoncés par le registre} prouve
+    # qu'aucun acte de la version 1 ne subsiste.
+    assert count2 == len(new_act_ids)
+    assert remaining_ids == set(new_act_ids)
