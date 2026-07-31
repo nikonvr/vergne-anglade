@@ -66,7 +66,7 @@ def build_standalone_html():
                 "id": idx,
                 "act_type": act.act_type or "Naissance / Filiation",
                 "date": act.date or "Non précisé",
-                "location": act.location or "Anglards-de-Salers",
+                "location": act.location or "Lieu non précisé",
                 "confidence": round((act.confidence_score or 0.95) * 100),
                 "source_text": act.source_text or f"Acte d'état civil original enregistré pour la famille {act.persons[0].last_name if act.persons else ''}.",
                 "source_type": act.source_type or "GEDCOM_HEREDIS",

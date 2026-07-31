@@ -68,7 +68,7 @@ class GedcomExporter:
             d_date = getattr(person, "death_date", "") or ""
             date_str = f"({b_date} - {d_date})" if (b_date or d_date) else ""
             
-            place = getattr(person, "birth_place", "") or getattr(person, "death_place", "") or "Anglards-de-Salers"
+            place = getattr(person, "birth_place", "") or getattr(person, "death_place", "") or ""
             
             ln_upper = ln.upper()
             if any(k in ln_upper for k in ["VERGNE", "VERNHE", "ANGLADE", "BRUN"]):
