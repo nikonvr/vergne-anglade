@@ -346,14 +346,12 @@ class TreeBuilder:
             return []
 
     # ------------------------------------------------------------------ sous-arbres
-    def subtree_ids(self, root_id: str, up: int = 3, down: int = 3) -> Set[str]:
+    def subtree_ids(self, root_id: str, up: int = 3, down: int = 3, include_siblings: bool = True) -> Set[str]:
         """Identifiants du sous-arbre centré sur `root_id` (racine incluse).
 
         Remonte au plus `up` générations par les arêtes de filiation ENTRANTES (parents)
-        et descend au plus `down` générations par les arêtes SORTANTES (enfants). Les
-        conjoints des descendants apparaissent naturellement dans le résultat : un enfant
-        porte une arête entrante par parent, donc son autre parent ressort comme
-        prédécesseur du même nœud descendant, sans traitement particulier.
+        et descend au plus `down` générations par les arêtes SORTANTES (enfants). Si
+        include_siblings est True, inclut également les frères & sœurs à chaque niveau.
 
         Retourne un ensemble vide si `root_id` n'existe pas dans le graphe. Si la racine
         existe mais n'a aucune arête de filiation (individu isolé), retourne {root_id}.
@@ -376,9 +374,9 @@ class TreeBuilder:
             if not frontier:
                 break
             ids |= frontier
-            # Inclure les frères et sœurs (les autres enfants des ascendants retenus)
-            siblings = {child for parent in frontier for child in dag.successors(parent)}
-            ids |= siblings
+            if include_siblings:
+                siblings = {child for parent in frontier for child in dag.successors(parent)}
+                ids |= siblings
 
         frontier = {root_id}
         for _ in range(max(0, down)):
@@ -389,7 +387,9 @@ class TreeBuilder:
 
         return ids
 
-    def subtree(self, tree: FamilyTree, root_id: str, up: int = 3, down: int = 3) -> FamilyTree:
+    def subtree(
+        self, tree: FamilyTree, root_id: str, up: int = 3, down: int = 3, include_siblings: bool = True
+    ) -> FamilyTree:
         """Restreint un arbre déjà construit au sous-arbre centré sur `root_id`.
 
         `tree` doit provenir de `process_acts()` sur CE builder : le filtrage s'appuie sur

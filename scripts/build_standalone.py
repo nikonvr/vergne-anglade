@@ -441,6 +441,9 @@ def build_standalone_html() -> Path:
                     <label class="flex items-center gap-1 text-brand-100">Descendants
                         <input id="subtree-down" type="number" min="0" max="15" value="3" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
                     </label>
+                    <label class="flex items-center gap-1 text-brand-100 cursor-pointer select-none">
+                        <input id="subtree-siblings" type="checkbox" checked class="rounded accent-brand-500"> Fratrie
+                    </label>
                     <button id="subtree-recompute" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg font-bold transition">Recalculer</button>
                 </div>
                 <button id="subtree-close-top" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
@@ -861,22 +864,26 @@ def build_standalone_html() -> Path:
         let subtreePanZoom = null;
         let currentSubtreeRoot = null;
 
-        function subtreeIds(rootId, up, down) {{
-            if (!NODES_BY_ID.has(rootId)) return new Set();
-            const ids = new Set([rootId]);
+        function subtreeInfo(rootId, up, down, includeSiblings = true) {{
+            if (!NODES_BY_ID.has(rootId)) return {{ ids: new Set(), directIds: new Set() }};
             const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
+
+            const directIds = new Set([rootId]);
+            const ids = new Set([rootId]);
 
             let frontier = new Set([rootId]);
             for (let i = 0; i < Math.max(0, up); i++) {{
                 const next = new Set();
                 filiation.forEach(e => {{ if (frontier.has(e.target_id)) next.add(e.source_id); }});
                 if (next.size === 0) break;
-                next.forEach(id => ids.add(id));
+                next.forEach(id => {{ ids.add(id); directIds.add(id); }});
                 frontier = next;
-                // Inclure la fratrie (enfants des ascendants retenus)
-                const siblings = new Set();
-                filiation.forEach(e => {{ if (frontier.has(e.source_id)) siblings.add(e.target_id); }});
-                siblings.forEach(id => ids.add(id));
+                if (includeSiblings) {{
+                    // Fratrie / collatéraux (enfants des ascendants retenus)
+                    const siblings = new Set();
+                    filiation.forEach(e => {{ if (frontier.has(e.source_id)) siblings.add(e.target_id); }});
+                    siblings.forEach(id => ids.add(id));
+                }}
             }}
 
             frontier = new Set([rootId]);
@@ -884,11 +891,15 @@ def build_standalone_html() -> Path:
                 const next = new Set();
                 filiation.forEach(e => {{ if (frontier.has(e.source_id)) next.add(e.target_id); }});
                 if (next.size === 0) break;
-                next.forEach(id => ids.add(id));
+                next.forEach(id => {{ ids.add(id); directIds.add(id); }});
                 frontier = next;
             }}
 
-            return ids;
+            return {{ ids, directIds }};
+        }}
+
+        function subtreeIds(rootId, up, down, includeSiblings = true) {{
+            return subtreeInfo(rootId, up, down, includeSiblings).ids;
         }}
 
         // Neutralise les caractères qui casseraient la syntaxe Mermaid dans un libellé entre
@@ -897,10 +908,11 @@ def build_standalone_html() -> Path:
             return (value || '').replace(/["\\[\\]{{}}|<>`]/g, '').replace(/\\s+/g, ' ').trim();
         }}
 
-        function buildSubtreeMermaid(ids) {{
+        function buildSubtreeMermaid(ids, directIds = new Set()) {{
             const lines = [
                 'graph BT',
                 "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
+                "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4",
             ];
             const idMap = new Map();
             let counter = 1;
@@ -912,12 +924,21 @@ def build_standalone_html() -> Path:
                 const firstName = mermaidSafe(node.first_name) || 'Inconnu';
                 const lastName = mermaidSafe(node.last_name) || 'Inconnu';
                 const dates = [node.birth_date, node.death_date].filter(Boolean).map(mermaidSafe).join(' - ');
-                // Prénom et nom sur deux lignes : sur une seule ligne, un nom complet
-                // dépasse souvent la largeur de la boîte et se fait tronquer par Mermaid.
-                let label = '<b>' + firstName + '</b><br/><b>' + lastName + '</b>';
-                if (dates) label += '<br/>(' + dates + ')';
-                if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
-                lines.push('    ' + safeId + '["' + label + '"]:::defaut');
+                const isDirect = directIds.has(nid);
+
+                let label = '';
+                if (isDirect) {{
+                    label = '<b>' + firstName + '</b><br/><b>' + lastName + '</b>';
+                    if (dates) label += '<br/>(' + dates + ')';
+                    if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
+                    lines.push('    ' + safeId + '["' + label + '"]:::defaut');
+                }} else {{
+                    // Collatéraux (frères & sœurs) : police plus claire (#64748b), style atténué, bordure pointillée
+                    label = '<span style="color:#64748b;"><b>' + firstName + '</b><br/><b>' + lastName + '</b></span>';
+                    if (dates) label += '<br/><span style="color:#94a3b8;font-size:11px;">(' + dates + ')</span>';
+                    if (node.place) label += '<br/><span style="color:#94a3b8;font-size:11px;"><i>' + mermaidSafe(node.place) + '</i></span>';
+                    lines.push('    ' + safeId + '["' + label + '"]:::collat');
+                }}
             }});
             EDGES.forEach(e => {{
                 const source = idMap.get(e.source_id);
@@ -930,7 +951,8 @@ def build_standalone_html() -> Path:
         async function renderSubtree(rootId) {{
             const up = parseInt(document.getElementById('subtree-up').value, 10) || 0;
             const down = parseInt(document.getElementById('subtree-down').value, 10) || 0;
-            const ids = subtreeIds(rootId, up, down);
+            const includeSiblings = document.getElementById('subtree-siblings').checked;
+            const {{ ids, directIds }} = subtreeInfo(rootId, up, down, includeSiblings);
 
             document.getElementById('subtree-count').textContent =
                 ids.size + ' individu(s) dans cette branche (' + up + ' génération(s) en amont, ' +
@@ -940,7 +962,7 @@ def build_standalone_html() -> Path:
             const container = document.getElementById('subtree-mermaid');
             container.replaceChildren();
 
-            const graphDefinition = buildSubtreeMermaid(ids);
+            const graphDefinition = buildSubtreeMermaid(ids, directIds);
             const renderId = 'subtree-svg-' + Date.now();
             const {{ svg }} = await mermaid.render(renderId, graphDefinition);
             container.innerHTML = svg;
@@ -1126,6 +1148,9 @@ def build_standalone_html() -> Path:
             if (event.target === document.getElementById('subtree-modal')) closeSubtreeModal();
         }});
         document.getElementById('subtree-recompute').addEventListener('click', () => {{
+            if (currentSubtreeRoot) renderSubtree(currentSubtreeRoot);
+        }});
+        document.getElementById('subtree-siblings').addEventListener('change', () => {{
             if (currentSubtreeRoot) renderSubtree(currentSubtreeRoot);
         }});
         document.addEventListener('keydown', event => {{
