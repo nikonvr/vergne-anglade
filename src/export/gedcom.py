@@ -243,14 +243,23 @@ class GedcomExporter:
                 self._short_place(person.birth_place or person.death_place)
             )
 
-            # Prénom et nom sur deux lignes distinctes : un nom complet sur une seule ligne
-            # dépasse souvent la largeur de la boîte et se fait tronquer par Mermaid
-            # ("Françoise Jeanne Marie AN" au lieu de "...ANGLADE").
-            label = f"<b>{first_name}</b><br/><b>{last_name}</b>"
-            if dates:
-                label += f"<br/>{dates}"
+            sex_icon = "👨 " if person.sex == "M" else ("👩 " if person.sex == "F" else "")
+            label = f"<b>{sex_icon}{first_name}</b><br/><b>{last_name}</b>"
+            dates_parts = []
+            if birth:
+                dates_parts.append(f"🎂 {birth}")
+            if death:
+                dates_parts.append(f"✝️ {death}")
+            if dates_parts:
+                label += f"<br/>{'  '.join(dates_parts)}"
+
+            details_parts = []
             if place:
-                label += f"<br/><i>{place}</i>"
+                details_parts.append(f"📍 {place}")
+            if person.occupation:
+                details_parts.append(f"💼 {self._mermaid_safe(person.occupation)}")
+            if details_parts:
+                label += f"<br/><i>{' &bull; '.join(details_parts)}</i>"
 
             style_class = region_style_for_surname(person.last_name)
             node_defs[node_id] = f'{safe_id}["{label}"]:::{style_class}'
@@ -260,7 +269,7 @@ class GedcomExporter:
 
         for idx, family in enumerate(families, 1):
             fam_id = f"FAM{idx}"
-            union_node = f'{fam_id}["💍 Union"]:::union'
+            union_node = f'{fam_id}["💍 Mariage"]:::union'
             h, w = family["husb"], family["wife"]
 
             if h and w and h in id_map and w in id_map:

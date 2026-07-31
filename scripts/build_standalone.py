@@ -441,15 +441,21 @@ def build_standalone_html() -> Path:
                 </div>
                 <div class="flex items-center gap-2 text-xs">
                     <label class="flex items-center gap-1 text-brand-100">Ascendants
-                        <input id="subtree-up" type="number" min="0" max="15" value="3" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
+                        <input id="subtree-up" type="number" min="0" max="15" value="2" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
                     </label>
                     <label class="flex items-center gap-1 text-brand-100">Descendants
-                        <input id="subtree-down" type="number" min="0" max="15" value="3" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
+                        <input id="subtree-down" type="number" min="0" max="15" value="2" class="w-14 px-1.5 py-1 rounded text-slate-900 text-center">
                     </label>
                     <label class="flex items-center gap-1 text-brand-100 cursor-pointer select-none">
                         <input id="subtree-siblings" type="checkbox" checked class="rounded accent-brand-500"> Fratrie
                     </label>
                     <button id="subtree-recompute" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg font-bold transition">Recalculer</button>
+                    <div class="flex items-center gap-1 bg-brand-800/80 p-1 rounded-lg text-xs ml-2 border border-brand-700">
+                        <button id="subtree-zoom-in" title="Zoom avant" class="px-2 py-0.5 hover:bg-brand-700 rounded text-white font-bold transition">➕</button>
+                        <button id="subtree-zoom-out" title="Zoom arrière" class="px-2 py-0.5 hover:bg-brand-700 rounded text-white font-bold transition">➖</button>
+                        <button id="subtree-zoom-fit" title="Ajuster à l'écran" class="px-2 py-0.5 hover:bg-brand-700 rounded text-white font-bold transition">🎯</button>
+                        <button id="subtree-zoom-reset" title="Réinitialiser" class="px-2 py-0.5 hover:bg-brand-700 rounded text-white font-bold transition">🔄</button>
+                    </div>
                 </div>
                 <button id="subtree-close-top" class="text-brand-200 hover:text-white text-2xl font-bold px-2 py-0.5 rounded">&times;</button>
             </div>
@@ -924,12 +930,13 @@ def build_standalone_html() -> Path:
             return (value || '').replace(/["\\[\\]{{}}|<>`]/g, '').replace(/\\s+/g, ' ').trim();
         }}
 
-        function buildSubtreeMermaid(ids, directIds = new Set()) {{
+        function buildSubtreeMermaid(ids, directIds = new Set(), rootId = null) {{
             const lines = [
                 'graph TD',
-                "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px",
-                "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4",
-                "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:8,ry:8",
+                "    classDef rootPerson fill:#ecfdf5,stroke:#047857,stroke-width:3px,rx:8,ry:8",
+                "    classDef defaut fill:#f0fdf4,stroke:#059669,stroke-width:2px,rx:8,ry:8",
+                "    classDef collat fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,stroke-dasharray: 4 4,rx:8,ry:8",
+                "    classDef union fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,rx:12,ry:12",
             ];
 
             const nodeDefinitions = new Map();
@@ -940,24 +947,41 @@ def build_standalone_html() -> Path:
                 if (!node) return;
                 const safeId = 'S' + (counter++);
                 idMap.set(nid, safeId);
+
                 const firstName = mermaidSafe(node.first_name) || 'Inconnu';
                 const lastName = mermaidSafe(node.last_name) || 'Inconnu';
-                const dates = [node.birth_date, node.death_date].filter(Boolean).map(mermaidSafe).join(' - ');
                 const isDirect = directIds.has(nid);
+                const isRoot = (nid === rootId);
 
-                let label = '';
+                const sexIcon = (node.sex === 'M') ? '👨 ' : (node.sex === 'F') ? '👩 ' : '';
+                const crownBadge = isRoot ? '👑 ' : '';
+
+                const birth = mermaidSafe(node.birth_date);
+                const death = mermaidSafe(node.death_date);
+                const datesStr = [birth ? '🎂 ' + birth : '', death ? '✝️ ' + death : ''].filter(Boolean).join('  ');
+                const placeStr = mermaidSafe(node.place);
+                const occStr = mermaidSafe(node.occupation);
+
+                let label = '<div style="text-align:center;padding:2px 4px;">';
                 if (isDirect) {{
-                    label = '<b>' + firstName + '</b><br/><b>' + lastName + '</b>';
-                    if (dates) label += '<br/>(' + dates + ')';
-                    if (node.place) label += '<br/><i>' + mermaidSafe(node.place) + '</i>';
-                    nodeDefinitions.set(nid, safeId + '["' + label + '"]:::defaut');
+                    label += '<div style="font-size:13px;font-weight:bold;color:#0f172a;">' + crownBadge + sexIcon + firstName + '<br/><b>' + lastName + '</b></div>';
+                    if (datesStr) label += '<div style="font-size:11px;color:#334155;margin-top:2px;">' + datesStr + '</div>';
+                    if (placeStr || occStr) {{
+                        const details = [placeStr ? '📍 ' + placeStr : '', occStr ? '💼 ' + occStr : ''].filter(Boolean).join(' &bull; ');
+                        label += '<div style="font-size:10px;color:#64748b;margin-top:1px;"><i>' + details + '</i></div>';
+                    }}
                 }} else {{
-                    // Collatéraux (frères & sœurs) / conjoints : police plus claire (#64748b), style atténué, bordure pointillée
-                    label = '<span style="color:#64748b;"><b>' + firstName + '</b><br/><b>' + lastName + '</b></span>';
-                    if (dates) label += '<br/><span style="color:#94a3b8;font-size:11px;">(' + dates + ')</span>';
-                    if (node.place) label += '<br/><span style="color:#94a3b8;font-size:11px;"><i>' + mermaidSafe(node.place) + '</i></span>';
-                    nodeDefinitions.set(nid, safeId + '["' + label + '"]:::collat');
+                    label += '<div style="font-size:13px;font-weight:bold;color:#475569;">' + sexIcon + firstName + '<br/><b>' + lastName + '</b></div>';
+                    if (datesStr) label += '<div style="font-size:11px;color:#64748b;margin-top:2px;">' + datesStr + '</div>';
+                    if (placeStr || occStr) {{
+                        const details = [placeStr ? '📍 ' + placeStr : '', occStr ? '💼 ' + occStr : ''].filter(Boolean).join(' &bull; ');
+                        label += '<div style="font-size:10px;color:#94a3b8;margin-top:1px;"><i>' + details + '</i></div>';
+                    }}
                 }}
+                label += '</div>';
+
+                const styleClass = isRoot ? 'rootPerson' : (isDirect ? 'defaut' : 'collat');
+                nodeDefinitions.set(nid, safeId + '["' + label + '"]:::' + styleClass);
             }});
 
             const filiation = EDGES.filter(e => FILIATION_REL_TYPES.has((e.rel_type || '').toLowerCase()));
@@ -989,7 +1013,7 @@ def build_standalone_html() -> Path:
             // Placer chaque couple dans un subgraph direction LR pour forcer l'alignement horizontal côte-à-côte
             familyNodes.forEach(fam => {{
                 const famId = fam.famId;
-                const unionNode = famId + '["💍 Union"]:::union';
+                const unionNode = famId + '["💍 Mariage"]:::union';
 
                 if (fam.parents.length >= 2) {{
                     const p1 = fam.parents[0];
@@ -1057,7 +1081,7 @@ def build_standalone_html() -> Path:
             const container = document.getElementById('subtree-mermaid');
             container.replaceChildren();
 
-            const graphDefinition = buildSubtreeMermaid(ids, directIds);
+            const graphDefinition = buildSubtreeMermaid(ids, directIds, rootId);
             const renderId = 'subtree-svg-' + Date.now();
             const {{ svg }} = await mermaid.render(renderId, graphDefinition);
             container.innerHTML = svg;
@@ -1247,6 +1271,18 @@ def build_standalone_html() -> Path:
         }});
         document.getElementById('subtree-siblings').addEventListener('change', () => {{
             if (currentSubtreeRoot) renderSubtree(currentSubtreeRoot);
+        }});
+        document.getElementById('subtree-zoom-in').addEventListener('click', () => {{
+            if (subtreePanZoom) subtreePanZoom.zoomIn();
+        }});
+        document.getElementById('subtree-zoom-out').addEventListener('click', () => {{
+            if (subtreePanZoom) subtreePanZoom.zoomOut();
+        }});
+        document.getElementById('subtree-zoom-fit').addEventListener('click', () => {{
+            if (subtreePanZoom) {{ subtreePanZoom.fit(); subtreePanZoom.center(); }}
+        }});
+        document.getElementById('subtree-zoom-reset').addEventListener('click', () => {{
+            if (subtreePanZoom) {{ subtreePanZoom.resetZoom(); subtreePanZoom.resetPan(); }}
         }});
         document.addEventListener('keydown', event => {{
             if (event.key !== 'Escape') return;

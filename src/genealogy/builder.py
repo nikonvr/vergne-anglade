@@ -346,7 +346,7 @@ class TreeBuilder:
             return []
 
     # ------------------------------------------------------------------ sous-arbres
-    def subtree_ids(self, root_id: str, up: int = 3, down: int = 3, include_siblings: bool = True) -> Set[str]:
+    def subtree_ids(self, root_id: str, up: int = 2, down: int = 2, include_siblings: bool = True) -> Set[str]:
         """Identifiants du sous-arbre centré sur `root_id` (racine incluse).
 
         Remonte au plus `up` générations par les arêtes de filiation ENTRANTES (parents)
@@ -381,7 +381,7 @@ class TreeBuilder:
         return ids
 
     def subtree(
-        self, tree: FamilyTree, root_id: str, up: int = 3, down: int = 3, include_siblings: bool = True
+        self, tree: FamilyTree, root_id: str, up: int = 2, down: int = 2, include_siblings: bool = True
     ) -> FamilyTree:
         """Restreint un arbre déjà construit au sous-arbre centré sur `root_id`.
 

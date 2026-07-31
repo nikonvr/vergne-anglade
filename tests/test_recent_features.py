@@ -151,7 +151,7 @@ def test_feature_4_filtre_csv_et_scores_honnêtes():
 
 
 def test_feature_5_disposition_pro_arbres_et_subgraphs(sample_family_tree):
-    """Vérifie que GedcomExporter.export_mermaid produit un schéma pro avec subgraphs direction LR et nœuds 💍 Union."""
+    """Vérifie que GedcomExporter.export_mermaid produit un schéma pro avec subgraphs direction LR et nœuds 💍 Mariage."""
     from src.export.gedcom import GedcomExporter
 
     mermaid_code = GedcomExporter().export_mermaid(sample_family_tree)
@@ -159,5 +159,40 @@ def test_feature_5_disposition_pro_arbres_et_subgraphs(sample_family_tree):
     assert "graph TD" in mermaid_code
     assert "subgraph SG_FAM" in mermaid_code
     assert "direction LR" in mermaid_code
-    assert '💍 Union' in mermaid_code
+    assert '💍 Mariage' in mermaid_code
+
+
+def test_feature_6_icones_pedigree_et_defaults_generations(sample_family_tree):
+    """Vérifie les icônes de genre/dates/lieu/métier dans GedcomExporter et la valeur par défaut up=2, down=2."""
+    builder = _to_builder(sample_family_tree)
+
+    # Par défaut, up=2 et down=2 (bornage optimisé pour la lisibilité)
+    ids_default = builder.subtree_ids("E1")
+    assert "E1" in ids_default
+    assert "P" in ids_default
+    assert "GP" in ids_default  # 2 niveaux d'ascendance : P (1) et GP (2)
+
+    from src.export.gedcom import GedcomExporter
+    mermaid_code = GedcomExporter().export_mermaid(sample_family_tree)
+
+    # Icônes de genre M (👨) / F (👩) et métrique de date
+    assert "👨 Jean" in mermaid_code
+    assert "👩 Marie" in mermaid_code
+    assert "🎂 1850" in mermaid_code
+    assert "🎂 1855" in mermaid_code
+
+
+def test_feature_7_boutons_zoom_page_autonome():
+    """Vérifie la présence des 4 boutons de contrôle de zoom et des valeurs par défaut 2/2 dans le HTML généré."""
+    from scripts.build_standalone import build_standalone_html
+    html_file = build_standalone_html()
+    content = html_file.read_text(encoding="utf-8")
+
+    assert 'id="subtree-zoom-in"' in content
+    assert 'id="subtree-zoom-out"' in content
+    assert 'id="subtree-zoom-fit"' in content
+    assert 'id="subtree-zoom-reset"' in content
+    assert 'id="subtree-up" type="number" min="0" max="15" value="2"' in content
+    assert 'id="subtree-down" type="number" min="0" max="15" value="2"' in content
+
 

@@ -308,8 +308,8 @@ async def get_stats():
 @app.get("/api/tree", response_model=FamilyTree)
 async def get_global_tree(
     person_id: Optional[str] = None,
-    up: int = 3,
-    down: int = 3,
+    up: int = 2,
+    down: int = 2,
     include_siblings: bool = True,
 ):
     """Arbre généalogique reconstruit.
@@ -371,8 +371,8 @@ async def export_json_graph():
 @app.get("/api/export/mermaid")
 async def export_mermaid_endpoint(
     person_id: Optional[str] = None,
-    up: int = 3,
-    down: int = 3,
+    up: int = 2,
+    down: int = 2,
     include_siblings: bool = True,
 ):
     """Syntaxe Mermaid du diagramme, complet ou restreint à un sous-arbre (voir /api/tree)."""
