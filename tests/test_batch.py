@@ -6,6 +6,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 import src.ocr.backends  # noqa: F401
+from src.core.models import Act, Person
 from src.database.engine import DatabaseManager
 from src.database.repository import ActRepository
 from scripts.batch_transcribe import process_batch, load_ledger, get_ledger_path
@@ -97,7 +98,7 @@ def test_batch_idempotence(
 def test_batch_force(
     tmp_path, monkeypatch, allow_simulation, db_manager, synthetic_images
 ):
-    """Avec --force : les images sont retraitées et de nouveaux actes sont créés."""
+    """Avec --force : les images sont retraitées et remplacent les actes précédents sans accumulation."""
     images_dir, paths = synthetic_images
     ledger_file = tmp_path / "ledger.json"
     monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
@@ -106,6 +107,7 @@ def test_batch_force(
     session = db_manager.get_session()
     try:
         initial_count = ActRepository(session).count_acts()
+        initial_ids = [act.id for act in ActRepository(session).get_all_acts()]
     finally:
         session.close()
 
@@ -116,10 +118,13 @@ def test_batch_force(
     session = db_manager.get_session()
     try:
         final_count = ActRepository(session).count_acts()
+        final_ids = [act.id for act in ActRepository(session).get_all_acts()]
     finally:
         session.close()
 
-    assert final_count > initial_count
+    # Remplacement : le total reste identique, mais les clés primaires ont changé
+    assert final_count == initial_count
+    assert set(initial_ids).isdisjoint(set(final_ids))
 
 
 def test_batch_dry_run(
@@ -201,3 +206,178 @@ def test_batch_actes_simules(
             assert act.url_source is None
     finally:
         session.close()
+
+
+# ------------------------------------------------------------------ Nouveaux tests de remplacement et d'isolation
+
+
+def test_batch_replacement_remplace_et_n_accumule_pas(
+    tmp_path, monkeypatch, allow_simulation, db_manager
+):
+    """Répertoire de 2 images : traiter, compter les actes, puis retraiter avec --force et vérifier que le total d'actes est IDENTIQUE."""
+    scans_dir = tmp_path / "scans_replace"
+    scans_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(1, 3):
+        p = scans_dir / f"scan_{i:02d}.jpg"
+        img = Image.new("RGB", (100, 200), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([0, 0, 100, 60], fill=(0, 0, 0))
+        img.save(p)
+
+    ledger_file = tmp_path / "ledger_replace.json"
+    monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
+
+    # Premier passage
+    assert process_batch(source_dir=scans_dir, db_manager=db_manager) == 0
+    session = db_manager.get_session()
+    try:
+        count_pass1 = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Second passage avec --force
+    assert process_batch(source_dir=scans_dir, force=True, db_manager=db_manager) == 0
+    session = db_manager.get_session()
+    try:
+        count_pass2 = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Remplacement strict : pas d'accumulation d'actes
+    assert count_pass1 > 0
+    assert count_pass2 == count_pass1
+
+
+def test_batch_aucun_acte_orphelin(
+    tmp_path, monkeypatch, allow_simulation, db_manager, synthetic_images
+):
+    """Tout acte HTR/SIMULATED en base doit être référencé par les act_ids d'une entrée du registre."""
+    images_dir, paths = synthetic_images
+    ledger_file = tmp_path / "ledger_orphelin.json"
+    monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
+
+    process_batch(source_dir=images_dir, db_manager=db_manager)
+    # Retraitement avec force pour forcer le remplacement
+    process_batch(source_dir=images_dir, force=True, db_manager=db_manager)
+
+    ledger = load_ledger(ledger_file)
+    registered_act_ids = set()
+    for entry in ledger.values():
+        registered_act_ids.update(entry.get("act_ids", []))
+
+    session = db_manager.get_session()
+    try:
+        acts_in_db = ActRepository(session).get_all_acts()
+        htr_sim_acts = [
+            act for act in acts_in_db
+            if act.source_type and (act.source_type.startswith("HTR_") or act.source_type.startswith("SIMULATED_"))
+        ]
+        for act in htr_sim_acts:
+            assert act.id in registered_act_ids, f"L'acte {act.id} de source {act.source_type} est orphelin !"
+    finally:
+        session.close()
+
+
+def test_batch_preservation_gedcom_heredis(
+    tmp_path, monkeypatch, allow_simulation, db_manager, synthetic_images
+):
+    """Un acte GEDCOM_HEREDIS présent en base AVANT le lot est toujours là APRÈS un --force."""
+    images_dir, paths = synthetic_images
+    ledger_file = tmp_path / "ledger_gedcom.json"
+    monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
+
+    # Insérer un acte GEDCOM_HEREDIS préalable
+    session = db_manager.get_session()
+    try:
+        gedcom_act = Act(
+            act_type="Naissance GEDCOM",
+            confidence_score=1.0,
+            source_type="GEDCOM_HEREDIS",
+            source_text="Acte GEDCOM préservé.",
+            persons=[Person(first_name="Pierre", last_name="VERGNE", role="enfant")],
+        )
+        gedcom_act_id = ActRepository(session).save_act(gedcom_act)
+    finally:
+        session.close()
+
+    # Traitement initial + retraitement avec --force
+    process_batch(source_dir=images_dir, db_manager=db_manager)
+    process_batch(source_dir=images_dir, force=True, db_manager=db_manager)
+
+    # Vérifier que l'acte GEDCOM_HEREDIS est toujours présent
+    session = db_manager.get_session()
+    try:
+        retrieved_act = ActRepository(session).get_act_by_id(gedcom_act_id)
+        assert retrieved_act is not None
+        assert retrieved_act.source_type == "GEDCOM_HEREDIS"
+    finally:
+        session.close()
+
+
+def test_batch_dry_run_aucune_suppression(
+    tmp_path, monkeypatch, allow_simulation, db_manager, synthetic_images
+):
+    """En --dry-run après un premier passage réel, aucune suppression n'a lieu en base."""
+    images_dir, paths = synthetic_images
+    ledger_file = tmp_path / "ledger_dry_run_del.json"
+    monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
+
+    process_batch(source_dir=images_dir, db_manager=db_manager)
+    session = db_manager.get_session()
+    try:
+        count_real = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Lancement en --dry-run avec --force
+    process_batch(source_dir=images_dir, dry_run=True, force=True, db_manager=db_manager)
+
+    session = db_manager.get_session()
+    try:
+        count_after_dry_run = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Le nombre d'actes en base doit être strictement inchangé
+    assert count_after_dry_run == count_real
+
+
+def test_batch_changement_empreinte_image_remplace(
+    tmp_path, monkeypatch, allow_simulation, db_manager
+):
+    """Une image dont le contenu (et donc le SHA-256) change est retraitée en remplacement et non en ajout."""
+    scans_dir = tmp_path / "scans_modified"
+    scans_dir.mkdir(parents=True, exist_ok=True)
+    img_path = scans_dir / "scan_mod.jpg"
+
+    # Version 1 de l'image
+    img1 = Image.new("RGB", (100, 200), (255, 255, 255))
+    ImageDraw.Draw(img1).rectangle([0, 0, 100, 60], fill=(0, 0, 0))
+    img1.save(img_path)
+
+    ledger_file = tmp_path / "ledger_mod.json"
+    monkeypatch.setenv("CERTUS_BATCH_LEDGER", str(ledger_file))
+
+    process_batch(source_dir=scans_dir, db_manager=db_manager)
+    session = db_manager.get_session()
+    try:
+        count1 = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Version 2 de l'image (contenu modifié)
+    img2 = Image.new("RGB", (100, 200), (255, 255, 255))
+    ImageDraw.Draw(img2).rectangle([0, 100, 100, 160], fill=(50, 50, 50))
+    img2.save(img_path)
+
+    # Relance sans --force : le changement de SHA-256 déclenche le traitement en remplacement
+    process_batch(source_dir=scans_dir, db_manager=db_manager)
+    session = db_manager.get_session()
+    try:
+        count2 = ActRepository(session).count_acts()
+    finally:
+        session.close()
+
+    # Le nombre d'actes ne doit pas s'accumuler
+    assert count1 > 0
+    assert count2 == count1

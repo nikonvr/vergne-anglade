@@ -202,8 +202,13 @@ ambiguë se résout par la formule attendue, non par un meilleur modèle.
 - Le score de confiance vient de l'**accord mesuré entre moteurs**, jamais d'une constante.
 - Les incertitudes du modèle doivent rester **visibles** : `[illisible]` et `(?)` sont
   transportés jusqu'à l'interface, pas nettoyés.
-- Ne « corrigez » jamais une transcription vers un patronyme du fonds. Les patronymes fournis
-  au modèle sont une **aide à la lecture**, pas une contrainte.
+### 6.5 Statut de la collecte automatisée (IIIF / API d'archives)
+
+Une enquête menée sur l'accès aux images numérisées des Archives départementales du Cantal (15) et du Puy-de-Dôme (63) établit qu'**aucune interface standardisée ou documentée (IIIF, API, OAI-PMH)** n'est exposée par ces deux services :
+- **Cantal (15)** (`archives.cantal.fr`) : Plateforme Arkothèque sans API IIIF ou OAI-PMH publique. Le fichier `robots.txt` interdit l'accès au répertoire du moteur de la visionneuse (`Disallow: /_arkotheque/`).
+- **Puy-de-Dôme (63)** (`www.archivesdepartementales.puydedome.fr`) : Plateforme Ligeo Archives sans API IIIF ou point OAI-PMH ouvert. Le fichier `robots.txt` interdit l'accès aux répertoires de données et d'images (`Disallow: /data/`, `Disallow: /img/`).
+
+Conformément aux consignes éthiques et techniques, aucun aspirateur de visionneuse, simulatuer de navigateur ou contournement de restriction technique n'est implémenté. La collecte réelle via robot reste donc désactivée tant qu'un point d'entrée IIIF officiel n'est pas ouvert par ces organismes.
 
 ---
 

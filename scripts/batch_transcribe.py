@@ -54,7 +54,11 @@ def load_ledger(ledger_path: Path) -> dict:
     if ledger_path.exists():
         try:
             with open(ledger_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                raw_data = json.load(f)
+                return {
+                    str(Path(k).resolve()).replace("\\", "/").lower(): v
+                    for k, v in raw_data.items()
+                }
         except Exception as exc:
             logger.warning(
                 "Impossible de lire le registre JSON (%s), un nouveau registre sera créé : %s",
@@ -127,7 +131,7 @@ def process_batch(
 
     images_to_process = []
     for img_path in image_files:
-        rel_key = str(img_path.resolve())
+        rel_key = str(img_path.resolve()).replace("\\", "/").lower()
         sha256 = compute_sha256(img_path)
 
         if not force and resume and rel_key in ledger:
@@ -197,16 +201,34 @@ def process_batch(
             if is_img_simulated:
                 simulated_acts_total += len(acts_for_image)
 
-            # 3. Persistance
+            old_entry = ledger.get(rel_key, {})
+            old_act_ids = old_entry.get("act_ids", [])
+
+            # 3. Persistance (remplacement des actes existants de cette image)
             created_act_ids = []
             if not dry_run:
                 session = db_manager.get_session()
                 try:
                     repo = ActRepository(session)
+                    if old_act_ids:
+                        deleted_count = repo.delete_acts_by_ids(old_act_ids, commit=False)
+                        logger.info(
+                            "Remplacement de %d acte(s) existant(s) pour %s (IDs: %s).",
+                            deleted_count,
+                            img_path.name,
+                            old_act_ids,
+                        )
                     created_act_ids = repo.save_acts(acts_for_image)
                 finally:
                     session.close()
             else:
+                if old_act_ids:
+                    logger.info(
+                        "  [DRY-RUN] Supprimerait %d acte(s) existant(s) pour %s (IDs: %s).",
+                        len(old_act_ids),
+                        img_path.name,
+                        old_act_ids,
+                    )
                 logger.info(
                     "  [DRY-RUN] %d acte(s) prêt(s) à persister.", len(acts_for_image)
                 )

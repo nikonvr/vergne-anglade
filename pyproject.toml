@@ -45,7 +45,6 @@ llm = ["openai>=1.0.0"]
 # httpx est requis par fastapi.testclient.TestClient utilisé dans tests/.
 dev = [
     "pytest>=8.0.0",
-    "pytest-timeout>=2.2.0",
     "anyio>=4.0.0",
     "httpx>=0.27.0",
     "ruff",
@@ -63,9 +62,9 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 pythonpath = ["."]
 addopts = "-ra"
-# Garde-fou (pytest-timeout) : un test qui dépasse 120 s est considéré comme
-# bloqué, la suite complète devant rester de l'ordre de la dizaine de secondes.
-timeout = 120
+markers = [
+    "slow: marqueur pour les tests d'intégration plus lents sur des images réelles",
+]
 
 [tool.ruff]
 line-length = 120

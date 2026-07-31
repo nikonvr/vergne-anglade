@@ -114,6 +114,31 @@ class ActRepository:
         logger.info("%d actes enregistrés en un commit.", len(ids))
         return ids
 
+    def delete_acts_by_ids(self, act_ids: List[int], commit: bool = True) -> int:
+        """Supprime les actes correspondant aux identifiants fournis (cascade sur DBPerson)."""
+        if not act_ids:
+            return 0
+        deleted_count = 0
+        deleted_ids: List[int] = []
+        for act_id in act_ids:
+            db_act = self.session.get(DBAct, act_id)
+            if db_act:
+                self.session.delete(db_act)
+                deleted_count += 1
+                deleted_ids.append(act_id)
+            else:
+                logger.debug(
+                    "Identifiant d'acte %d non trouvé en base lors de la suppression.", act_id
+                )
+        if deleted_count > 0:
+            self.session.flush()
+            if commit:
+                self.session.commit()
+            logger.info(
+                "%d acte(s) remplacé(s) et supprimé(s) (IDs: %s).", deleted_count, deleted_ids
+            )
+        return deleted_count
+
     # ------------------------------------------------------------------ lectures
 
     def get_all_acts(self) -> List[Act]:
